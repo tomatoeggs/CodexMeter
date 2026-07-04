@@ -1,0 +1,41 @@
+CHANGELOG.md
+  s_fb39a037c86ff9::t_3572e0049c9eea 5-7
+NOTICE.md
+  s_fb39a037c86ff9::t_fbdc5497c2ed83 9,15-19
+README.md
+  s_fb39a037c86ff9::t_fbd9cb099bb5a3 14,44,128,183-188,217
+docs/architecture.md
+  s_fb39a037c86ff9::t_1b76bb229b2e84 7,28-30,71-82,98,127
+firmware/include/config.h
+  s_fb39a037c86ff9::t_05694c7065404d 40-41
+firmware/platformio.ini
+  s_fb39a037c86ff9::t_b5d72023abdac6 28
+firmware/src/display_rotation.cpp
+  s_fb39a037c86ff9::t_c2f6b976272814 1-125
+firmware/src/display_rotation.h
+  s_fb39a037c86ff9::t_2ddf91d65c553c 1-10
+firmware/src/imu.cpp
+  s_fb39a037c86ff9::t_afd3eae29753a3 1-175
+firmware/src/imu.h
+  s_fb39a037c86ff9::t_71ada303fff756 1-16
+firmware/src/main.cpp
+  s_fb39a037c86ff9::t_7ddd6b4036bd43 9-10,44-46,60-61,79-80,83-87,97,163-212,301-303,348-370,449,468
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "1bcf6cb14f59d275abb2362cdb1ee8e3297eee57",
+  "prompts": {},
+  "sessions": {
+    "s_fb39a037c86ff9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f28ff-361a-71f1-9e7b-cc25bd27c020",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
