@@ -23,8 +23,11 @@
 - `firmware/src/ui.*`：负责 LVGL 显示、余量卡片、电池图标、重置倒计时、红黄绿闪屏和任务完成视图。
 - `firmware/src/ble_service.*`：负责 GATT 服务、RX/TX、ACK/NACK 与刷新通知。
 - `firmware/src/power.*`：负责 AXP2101 电量和 PWR/按键事件。
+- `firmware/src/device_log.*`：负责 ESP32 端关键事件环形日志、实时串口打印和按需日志 dump。
 - `tools/capture_screenshot.py`：负责通过 USB 串口触发固件截图命令、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
+- `tools/read_device_logs.py`：负责通过 USB 串口查询、清空或跟随 ESP32 设备日志。
 - `screenshot.sh`：截图工具入口，自动选择 Python 并转发参数。
+- `logs.sh`：日志工具入口，自动选择 Python 并转发参数。
 
 ## 数据流
 
@@ -40,9 +43,11 @@
 8. 固件收到 `activity` 后，在正常页底部居中显示对应数量的小蓝点；计数为 0 时隐藏。
 9. Codex turn 完成时触发用户级 `Stop` hook；Stop hook 从 `last_assistant_message` 中生成不超过 96 字符的短摘要。
 10. Stop hook 只发送一次 `task_complete` 事件。daemon 在同一个事件处理中先清除运行中任务，再构造 `alert` payload。
-11. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
-12. 固件收到 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
-13. 用户可按 BOOT/侧边按键提前关闭提醒。
+11. daemon 会同时发送 `activity` payload，并把完成后的 `run` 数量写入 `alert` payload，避免 BLE 连续写入丢失时小蓝点残留。
+12. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
+13. 固件 BLE RX 使用小队列缓存连续 payload；收到携带 `run` 的 `alert` 时，会在显示提醒前同步更新活动任务数。
+14. 固件收到 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
+15. 用户可按 BOOT/侧边按键提前关闭提醒。
 
 ## USB 截图链路
 
@@ -54,6 +59,18 @@
 6. 宿主侧工具校验尺寸和字节数，把 RGB565LE 转为 RGB888，并使用 Python 标准库写出 PNG。
 
 该链路只用于调试和视觉 QA，不参与 BLE 数据协议，也不影响 macOS daemon 的运行职责。
+
+## ESP32 日志链路
+
+1. 固件启动后，关键事件会写入 48 条容量的环形日志，并同步打印到 USB 串口，格式为 `LOG <seq> <ms> <level> <message>`。
+2. 日志覆盖启动、PMU 初始化、BLE 广播/连接/断开、BLE RX 队列溢出、JSON 解析错误、usage/activity/alert payload、stale 状态和截图结果。
+3. 用户或自动化脚本运行 `./logs.sh [-n count] [port]`。
+4. 宿主侧工具向固件发送 `logs` 或 `logs <count>`。
+5. 固件输出 `LOGS_START <count>`、日志行和 `LOGS_END`。
+6. `./logs.sh --clear [port]` 发送 `log_clear`，清空设备端环形日志。
+7. `./logs.sh --follow [port]` 不发送查询命令，只跟随实时串口输出。
+
+日志链路与截图链路共用 USB CDC 串口，不进入 BLE 协议。日志只保存运行事件和状态摘要，不保存 Codex token 或完整 payload 正文。
 
 ## 显示模型
 
@@ -99,6 +116,12 @@ GATT UUID：
 {"v":1,"k":"alert","id":"...","title":"任务完成！","body":"摘要","t":1783070000}
 ```
 
+`task_complete` 提醒会额外带上完成后的运行中任务数：
+
+```json
+{"v":1,"k":"alert","id":"...","title":"任务完成！","body":"摘要","run":0,"t":1783070000}
+```
+
 运行中任务 payload：
 
 ```json
@@ -131,6 +154,8 @@ GATT UUID：
 - BLE payload 控制在 512 bytes 内。
 - alert 正文在 macOS 端先限制为 210 bytes，再由整体 payload 编码器做最终兜底裁剪。
 - 固件 alert 正文缓冲区为 240 bytes，标题缓冲区为 48 bytes。
+- 固件 BLE RX 队列可缓存 6 个 payload，避免连续写入时后一个 payload 覆盖前一个。
+- 固件设备日志保留最近 48 条，每条消息最多 143 bytes；超过容量时覆盖最旧日志。
 - 固件 180 秒无新 usage 更新时进入 stale 状态。
 - alert 闪动步长为 180 ms，共 6 步；文字出现后停留 8 秒。
 - ESP32 端不联网校时，重置倒计时依赖 daemon payload 的 `t` 字段和设备本地运行时钟。

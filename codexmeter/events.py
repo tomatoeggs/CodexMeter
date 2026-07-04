@@ -147,7 +147,12 @@ class EventServer:
         if event_type == "alert":
             body = str(event.get("body") or event.get("summary") or "")
             title = str(event.get("title") or "任务完成！")
-            payload = build_alert_payload(body=body, title=title)
+            running_count = event.get("run", event.get("count"))
+            payload = build_alert_payload(
+                body=body,
+                title=title,
+                running_count=int(running_count) if running_count is not None else None,
+            )
             await self.sink(payload)
             log.info("Queued local alert: %s", body[:80])
             return {"ok": True, "queued": "alert"}
@@ -191,7 +196,11 @@ class EventServer:
 
         body = str(event.get("body") or event.get("summary") or "")
         title = str(event.get("title") or "任务完成！")
-        payload = build_alert_payload(body=body, title=title)
+        payload = build_alert_payload(
+            body=body,
+            title=title,
+            running_count=self.activity.count,
+        )
         await self.sink(payload)
         log.info("Queued local alert: %s", body[:80])
         return {

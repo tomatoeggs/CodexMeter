@@ -5,6 +5,7 @@
 #include <XPowersLib.h>
 
 #include "config.h"
+#include "device_log.h"
 
 static XPowersPMU pmu;
 static bool pmu_ready = false;
@@ -19,7 +20,7 @@ void power_init() {
   pmu_ready = pmu.begin(Wire, CODEXMETER_AXP2101_ADDR, CODEXMETER_I2C_SDA,
                         CODEXMETER_I2C_SCL);
   if (!pmu_ready) {
-    Serial.println("AXP2101 init failed");
+    device_logf("ERROR", "AXP2101 init failed");
     return;
   }
 
@@ -32,6 +33,7 @@ void power_init() {
 
   cached_pct = pmu.getBatteryPercent();
   cached_charging = pmu.isCharging();
+  device_logf("INFO", "AXP2101 ready battery=%d charging=%d", cached_pct, cached_charging);
 }
 
 void power_tick() {
@@ -51,6 +53,7 @@ void power_tick() {
     pmu.getIrqStatus();
     if (pmu.isPekeyShortPressIrq()) {
       pwr_pressed = true;
+      device_logf("INFO", "power key short press");
     }
     pmu.clearIrqStatus();
   }

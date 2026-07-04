@@ -4,127 +4,21 @@
 from __future__ import annotations
 
 import argparse
-import glob
-import os
-import select
 import struct
 import sys
-import termios
 import time
 import zlib
 from pathlib import Path
+
+from serial_device import SerialSession, SerialToolError, detect_port, port_score
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 DEFAULT_LINE_TIMEOUT_SECONDS = 8.0
 DEFAULT_RAW_TIMEOUT_SECONDS = 30.0
 
 
-class CaptureError(RuntimeError):
+class CaptureError(SerialToolError):
     """Raised when the device does not return a valid screenshot frame."""
-
-
-class SerialCapture:
-    def __init__(self, port: str) -> None:
-        self.port = port
-        self.fd: int | None = None
-        self.buffer = bytearray()
-
-    def __enter__(self) -> "SerialCapture":
-        self.fd = os.open(self.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-        self._configure_port()
-        termios.tcflush(self.fd, termios.TCIFLUSH)
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        if self.fd is not None:
-            os.close(self.fd)
-            self.fd = None
-
-    def _configure_port(self) -> None:
-        if self.fd is None:
-            raise CaptureError("serial port is not open")
-        attrs = termios.tcgetattr(self.fd)
-        attrs[0] = 0
-        attrs[1] = 0
-        attrs[2] |= termios.CLOCAL | termios.CREAD
-        attrs[2] &= ~termios.PARENB
-        attrs[2] &= ~termios.CSTOPB
-        attrs[2] &= ~termios.CSIZE
-        attrs[2] |= termios.CS8
-        attrs[3] = 0
-        attrs[4] = termios.B115200
-        attrs[5] = termios.B115200
-        attrs[6][termios.VMIN] = 0
-        attrs[6][termios.VTIME] = 0
-        termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
-
-    def write_command(self, command: bytes) -> None:
-        if self.fd is None:
-            raise CaptureError("serial port is not open")
-        total = 0
-        while total < len(command):
-            total += os.write(self.fd, command[total:])
-
-    def read_line(self, timeout: float) -> bytes:
-        deadline = time.monotonic() + timeout
-        while True:
-            newline = self.buffer.find(b"\n")
-            if newline >= 0:
-                line = bytes(self.buffer[:newline])
-                del self.buffer[: newline + 1]
-                return line.rstrip(b"\r")
-            self._read_more(deadline)
-
-    def read_exact(self, size: int, timeout: float) -> bytes:
-        deadline = time.monotonic() + timeout
-        while len(self.buffer) < size:
-            self._read_more(deadline)
-        data = bytes(self.buffer[:size])
-        del self.buffer[:size]
-        return data
-
-    def _read_more(self, deadline: float) -> None:
-        if self.fd is None:
-            raise CaptureError("serial port is not open")
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise CaptureError("timed out waiting for screenshot data")
-        ready, _, _ = select.select([self.fd], [], [], min(0.25, remaining))
-        if not ready:
-            return
-        try:
-            chunk = os.read(self.fd, 8192)
-        except BlockingIOError:
-            return
-        if chunk:
-            self.buffer.extend(chunk)
-
-
-def detect_port() -> str:
-    patterns = [
-        "/dev/cu.usbmodem*",
-        "/dev/cu.usbserial*",
-        "/dev/ttyACM*",
-        "/dev/ttyUSB*",
-    ]
-    ports: list[str] = []
-    for pattern in patterns:
-        ports.extend(sorted(glob.glob(pattern)))
-    if not ports:
-        raise CaptureError("no USB serial port found; pass the port path explicitly")
-    return sorted(dict.fromkeys(ports), key=_port_score)[0]
-
-
-def _port_score(port: str) -> tuple[int, str]:
-    name = os.path.basename(port)
-    score = 0
-    if "000000000000" in name:
-        score += 20
-    if "usbserial" in name:
-        score += 10
-    if name.startswith("tty"):
-        score += 5
-    return score, name
 
 
 def capture_rgb565le(
@@ -133,8 +27,8 @@ def capture_rgb565le(
     line_timeout: float = DEFAULT_LINE_TIMEOUT_SECONDS,
     raw_timeout: float = DEFAULT_RAW_TIMEOUT_SECONDS,
 ) -> tuple[int, int, bytes]:
-    with SerialCapture(port) as serial:
-        serial.write_command(b"screenshot\n")
+    with SerialSession(port) as serial:
+        serial.write_line("screenshot")
         while True:
             line = serial.read_line(line_timeout)
             text = line.decode("utf-8", errors="replace").strip()
@@ -161,7 +55,7 @@ def capture_rgb565le(
             return width, height, data
 
 
-def _wait_for_end(serial: SerialCapture, timeout: float) -> None:
+def _wait_for_end(serial: SerialSession, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -236,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         output = Path(args.output)
         output.write_bytes(rgb565le_to_png(width, height, data))
-    except (CaptureError, OSError, ValueError) as exc:
+    except (SerialToolError, OSError, ValueError) as exc:
         print(f"Screenshot capture failed: {exc}", file=sys.stderr)
         return 1
 

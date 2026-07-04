@@ -59,5 +59,13 @@ def test_alert_payload_sanitizes_unsupported_device_text():
     assert decoded["body"] == "修复任务信息乱码 成功"
 
 
+def test_alert_payload_can_carry_running_count():
+    payload = build_alert_payload("摘要", now=1, event_id="abc", running_count=0)
+    decoded = json.loads(payload.to_json_bytes())
+    assert decoded["k"] == "alert"
+    assert decoded["run"] == 0
+    assert len(payload.to_json_bytes()) <= MAX_BLE_PAYLOAD_BYTES
+
+
 def test_sanitize_device_text_falls_back_when_empty():
     assert sanitize_device_text("🚀𠮷") == "Codex 任务已完成"

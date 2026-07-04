@@ -177,7 +177,7 @@ class BleTransport:
     async def _write_payload(self, client: Any, payload: Payload) -> None:
         data = payload.to_json_bytes()
         log.debug("BLE write %s: %s", payload.kind, data.decode("utf-8", errors="replace"))
-        await client.write_gatt_char(RX_CHAR_UUID, data, response=False)
+        await client.write_gatt_char(RX_CHAR_UUID, data, response=True)
 
     def _on_ack(self, _char: Any, data: bytearray) -> None:
         text = bytes(data).decode("utf-8", errors="replace")

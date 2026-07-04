@@ -5,6 +5,7 @@
 
 #include "ble_service.h"
 #include "config.h"
+#include "device_log.h"
 #include "model.h"
 #include "power.h"
 #include "ui.h"
@@ -51,7 +52,7 @@ static void lv_rounder(lv_event_t* event) {
 
 static void display_init() {
   if (!gfx->begin()) {
-    Serial.println("gfx begin failed");
+    device_logf("ERROR", "gfx begin failed");
   }
   gfx->fillScreen(0x0000);
 
@@ -63,7 +64,7 @@ static void display_init() {
   lv_buf_2 = (uint16_t*)heap_caps_malloc(
       CODEXMETER_SCREEN_W * BUF_LINES * sizeof(uint16_t), LV_BUF_CAPS);
   if (!lv_buf_1 || !lv_buf_2) {
-    Serial.println("LVGL buffer allocation failed");
+    device_logf("ERROR", "LVGL buffer allocation failed");
     while (true) delay(1000);
   }
 
@@ -81,20 +82,37 @@ static void handle_json(const char* json) {
   if (kind == PAYLOAD_USAGE) {
     last_usage_ms = millis();
     ui_update_usage(usage);
+    device_logf(
+        "INFO", "usage h5=%d d7=%d status=%s", usage.h5_remaining,
+        usage.d7_remaining, usage.status);
     ble_service_ack();
   } else if (kind == PAYLOAD_ALERT) {
+    if (alert.has_running_count) {
+      activity.valid = true;
+      activity.running_count = alert.running_count;
+      activity.updated_at = alert.received_at;
+      ui_update_activity(activity);
+    }
     ui_show_alert(alert);
+    if (alert.has_running_count) {
+      device_logf("INFO", "alert id=%s run=%d", alert.id, alert.running_count);
+    } else {
+      device_logf("INFO", "alert id=%s run=n/a", alert.id);
+    }
     ble_service_ack();
   } else if (kind == PAYLOAD_ACTIVITY) {
     ui_update_activity(activity);
+    device_logf("INFO", "activity run=%d", activity.running_count);
     ble_service_ack();
   } else {
+    device_logf("WARN", "invalid payload");
     ble_service_nack();
   }
 }
 
 static void send_screenshot() {
 #ifndef BOARD_HAS_PSRAM
+  device_logf("WARN", "screenshot unsupported");
   Serial.println("SCREENSHOT_UNSUPPORTED");
   return;
 #else
@@ -105,6 +123,7 @@ static void send_screenshot() {
 
   uint8_t* sbuf = (uint8_t*)heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
   if (!sbuf) {
+    device_logf("ERROR", "screenshot alloc failed");
     Serial.println("SCREENSHOT_ERR");
     return;
   }
@@ -117,6 +136,7 @@ static void send_screenshot() {
       lv_draw_buf_init(&draw_buf, w, h, LV_COLOR_FORMAT_RGB565, row_bytes, sbuf, buf_size);
   if (init_res != LV_RESULT_OK) {
     heap_caps_free(sbuf);
+    device_logf("ERROR", "screenshot draw buffer init failed");
     Serial.println("SCREENSHOT_ERR");
     return;
   }
@@ -125,6 +145,7 @@ static void send_screenshot() {
       lv_snapshot_take_to_draw_buf(lv_screen_active(), LV_COLOR_FORMAT_RGB565, &draw_buf);
   if (res != LV_RESULT_OK) {
     heap_caps_free(sbuf);
+    device_logf("ERROR", "screenshot snapshot failed");
     Serial.println("SCREENSHOT_ERR");
     return;
   }
@@ -138,6 +159,7 @@ static void send_screenshot() {
   Serial.println();
   Serial.println("SCREENSHOT_END");
   heap_caps_free(sbuf);
+  device_logf("INFO", "screenshot sent %lux%lu", (unsigned long)w, (unsigned long)h);
 #endif
 }
 
@@ -152,17 +174,30 @@ static void handle_serial() {
         usage_apply_demo(&usage);
         last_usage_ms = millis();
         ui_update_usage(usage);
+        device_logf("INFO", "serial demo_usage");
       } else if (strcmp(buf, "demo_alert") == 0) {
         alert_apply_demo(&alert);
         ui_show_alert(alert);
+        device_logf("INFO", "serial demo_alert");
       } else if (strcmp(buf, "demo_activity") == 0) {
         activity_apply_demo(&activity, 3);
         ui_update_activity(activity);
+        device_logf("INFO", "serial demo_activity run=3");
       } else if (strcmp(buf, "demo_idle") == 0) {
         activity_apply_demo(&activity, 0);
         ui_update_activity(activity);
+        device_logf("INFO", "serial demo_idle");
       } else if (strcmp(buf, "screenshot") == 0) {
         send_screenshot();
+      } else if (strncmp(buf, "logs", 4) == 0 && (buf[4] == '\0' || buf[4] == ' ')) {
+        size_t limit = 0;
+        if (buf[4] == ' ') {
+          limit = (size_t)strtoul(buf + 5, nullptr, 10);
+        }
+        device_log_dump(Serial, limit);
+      } else if (strcmp(buf, "log_clear") == 0) {
+        device_log_clear();
+        Serial.println("LOGS_CLEARED");
       } else if (buf[0] == '{') {
         handle_json(buf);
       }
@@ -186,6 +221,7 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   Serial.println("{\"ready\":true,\"device\":\"CodexMeter\"}");
+  device_logf("INFO", "device ready");
 
   pinMode(CODEXMETER_BUTTON_PIN, INPUT_PULLUP);
   power_init();
@@ -194,6 +230,7 @@ void setup() {
   ui_set_battery(power_battery_percent(), power_is_charging());
   ble_service_init();
   ble_service_request_refresh();
+  device_logf("INFO", "setup complete");
 }
 
 void loop() {
@@ -214,6 +251,7 @@ void loop() {
     strlcpy(usage.status, "stale", sizeof(usage.status));
     ui_update_usage(usage);
     last_usage_ms = millis();
+    device_logf("WARN", "usage stale");
   }
 
   if (millis() - last_battery_ui_ms >= 2000) {

@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 
+#include "device_log.h"
+
 static void copy_text(char* dst, size_t dst_size, const char* src) {
   if (!src) src = "";
   strlcpy(dst, src, dst_size);
@@ -15,7 +17,7 @@ PayloadKind parse_payload(
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
   if (err) {
-    Serial.printf("JSON parse error: %s\n", err.c_str());
+    device_logf("ERROR", "JSON parse error: %s", err.c_str());
     return PAYLOAD_NONE;
   }
 
@@ -34,10 +36,18 @@ PayloadKind parse_payload(
 
   if (strcmp(kind, "alert") == 0) {
     alert->valid = true;
+    alert->has_running_count = false;
+    alert->running_count = 0;
     copy_text(alert->id, sizeof(alert->id), doc["id"] | "");
     copy_text(alert->title, sizeof(alert->title), doc["title"] | "任务完成！");
     copy_text(alert->body, sizeof(alert->body), doc["body"] | "Codex 任务已完成");
     alert->received_at = doc["t"] | 0L;
+    JsonVariant run = doc["run"];
+    if (!run.isNull()) {
+      alert->has_running_count = true;
+      alert->running_count = run | 0;
+      if (alert->running_count < 0) alert->running_count = 0;
+    }
     return PAYLOAD_ALERT;
   }
 
@@ -49,7 +59,7 @@ PayloadKind parse_payload(
     return PAYLOAD_ACTIVITY;
   }
 
-  Serial.printf("Unknown payload kind: %s\n", kind);
+  device_logf("WARN", "Unknown payload kind: %s", kind);
   return PAYLOAD_NONE;
 }
 
@@ -70,6 +80,8 @@ void alert_apply_demo(AlertModel* alert) {
   long now = time(nullptr);
   if (now < 1000) now = 1783070000;
   alert->valid = true;
+  alert->has_running_count = false;
+  alert->running_count = 0;
   copy_text(alert->id, sizeof(alert->id), "demo");
   copy_text(alert->title, sizeof(alert->title), "任务完成！");
   copy_text(alert->body, sizeof(alert->body), "Codex 已完成一个测试任务");

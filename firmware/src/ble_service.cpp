@@ -1,6 +1,7 @@
 #include "ble_service.h"
 
 #include "config.h"
+#include "device_log.h"
 
 #include <NimBLEDevice.h>
 
@@ -9,12 +10,17 @@
 #define TX_CHAR_UUID "4c41555a-4465-7669-6365-000000000003"
 #define REQ_CHAR_UUID "4c41555a-4465-7669-6365-000000000004"
 #define RX_BUF_SIZE 512
+#define RX_QUEUE_SIZE 6
 
 static NimBLEServer* server = nullptr;
 static NimBLECharacteristic* tx_char = nullptr;
 static NimBLECharacteristic* req_char = nullptr;
-static char rx_buf[RX_BUF_SIZE];
-static volatile bool data_ready = false;
+static char rx_queue[RX_QUEUE_SIZE][RX_BUF_SIZE];
+static char rx_current[RX_BUF_SIZE];
+static uint8_t rx_head = 0;
+static uint8_t rx_tail = 0;
+static uint8_t rx_count = 0;
+static portMUX_TYPE rx_mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool should_advertise = false;
 static bool connected = false;
 
@@ -25,19 +31,19 @@ static void start_advertising() {
   adv->enableScanResponse(true);
   adv->setName(CODEXMETER_DEVICE_NAME);
   adv->start();
-  Serial.println("BLE advertising");
+  device_logf("INFO", "BLE advertising");
 }
 
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer*, NimBLEConnInfo& info) override {
     connected = true;
-    Serial.printf("BLE connected: %s\n", info.getAddress().toString().c_str());
+    device_logf("INFO", "BLE connected %s", info.getAddress().toString().c_str());
   }
 
   void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int reason) override {
     connected = false;
     should_advertise = true;
-    Serial.printf("BLE disconnected: %d\n", reason);
+    device_logf("WARN", "BLE disconnected reason=%d", reason);
   }
 };
 
@@ -46,9 +52,22 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
     std::string val = chr->getValue();
     size_t len = val.length();
     if (len >= RX_BUF_SIZE) len = RX_BUF_SIZE - 1;
-    memcpy(rx_buf, val.c_str(), len);
-    rx_buf[len] = '\0';
-    data_ready = true;
+
+    bool dropped = false;
+    portENTER_CRITICAL(&rx_mux);
+    memcpy(rx_queue[rx_head], val.c_str(), len);
+    rx_queue[rx_head][len] = '\0';
+    rx_head = (rx_head + 1) % RX_QUEUE_SIZE;
+    if (rx_count == RX_QUEUE_SIZE) {
+      rx_tail = (rx_tail + 1) % RX_QUEUE_SIZE;
+      dropped = true;
+    } else {
+      rx_count++;
+    }
+    portEXIT_CRITICAL(&rx_mux);
+    if (dropped) {
+      device_logf("WARN", "BLE RX queue full; dropped oldest");
+    }
   }
 };
 
@@ -80,12 +99,23 @@ void ble_service_tick() {
 }
 
 bool ble_service_has_data() {
-  return data_ready;
+  portENTER_CRITICAL(&rx_mux);
+  bool has_data = rx_count > 0;
+  portEXIT_CRITICAL(&rx_mux);
+  return has_data;
 }
 
 const char* ble_service_take_data() {
-  data_ready = false;
-  return rx_buf;
+  portENTER_CRITICAL(&rx_mux);
+  if (rx_count == 0) {
+    rx_current[0] = '\0';
+  } else {
+    strlcpy(rx_current, rx_queue[rx_tail], sizeof(rx_current));
+    rx_tail = (rx_tail + 1) % RX_QUEUE_SIZE;
+    rx_count--;
+  }
+  portEXIT_CRITICAL(&rx_mux);
+  return rx_current;
 }
 
 void ble_service_ack() {

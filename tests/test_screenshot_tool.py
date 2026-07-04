@@ -1,9 +1,11 @@
 from pathlib import Path
 import importlib.util
 import struct
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
 MODULE_PATH = ROOT / "tools" / "capture_screenshot.py"
 SPEC = importlib.util.spec_from_file_location("capture_screenshot", MODULE_PATH)
 capture_screenshot = importlib.util.module_from_spec(SPEC)
@@ -50,4 +52,4 @@ def test_detect_port_scoring_prefers_firmware_cdc_port():
         "/dev/cu.usbmodem211201",
         "/dev/cu.usbserial-test",
     ]
-    assert sorted(ports, key=capture_screenshot._port_score)[0] == "/dev/cu.usbmodem211201"
+    assert sorted(ports, key=capture_screenshot.port_score)[0] == "/dev/cu.usbmodem211201"

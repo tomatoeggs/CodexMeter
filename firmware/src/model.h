@@ -15,6 +15,8 @@ struct UsageModel {
 
 struct AlertModel {
   bool valid = false;
+  bool has_running_count = false;
+  int running_count = 0;
   char id[32] = "";
   char title[48] = "任务完成！";
   char body[240] = "";

@@ -18,6 +18,7 @@ TEST_MODULES = [
     "tests.test_events",
     "tests.test_hook",
     "tests.test_screenshot_tool",
+    "tests.test_device_logs_tool",
 ]
 
 

@@ -77,6 +77,7 @@ def build_alert_payload(
     title: str = "任务完成！",
     event_id: str | None = None,
     now: int | None = None,
+    running_count: int | None = None,
 ) -> Payload:
     title_text = sanitize_device_text(clean_summary(title), fallback="任务完成！")
     body_text = truncate_utf8(
@@ -91,6 +92,8 @@ def build_alert_payload(
         "body": body_text,
         "t": int(now if now is not None else time.time()),
     }
+    if running_count is not None:
+        data["run"] = max(0, int(running_count))
     return Payload("alert", data)
 
 

@@ -86,6 +86,34 @@ def test_task_complete_clears_activity_and_queues_alert():
         assert result["running"] == 0
         assert [payload.kind for payload in payloads[-2:]] == ["activity", "alert"]
         assert payloads[-2].data["run"] == 0
+        assert payloads[-1].data["run"] == 0
         assert payloads[-1].data["body"] == "摘要"
+
+    asyncio.run(scenario())
+
+
+def test_task_complete_alert_carries_remaining_activity_count():
+    async def scenario():
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(sink)
+        await server._dispatch({"type": "task_start", "session_id": "a"})
+        await server._dispatch({"type": "task_start", "session_id": "b"})
+        result = await server._dispatch(
+            {
+                "type": "task_complete",
+                "session_id": "a",
+                "title": "任务完成！",
+                "body": "摘要",
+            }
+        )
+        assert result["running"] == 1
+        assert payloads[-2].kind == "activity"
+        assert payloads[-2].data["run"] == 1
+        assert payloads[-1].kind == "alert"
+        assert payloads[-1].data["run"] == 1
 
     asyncio.run(scenario())
