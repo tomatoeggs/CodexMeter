@@ -1,0 +1,31 @@
+codexmeter/ble.py
+  s_fb39a037c86ff9::t_9be72efb1d82b9 180
+codexmeter/events.py
+  s_fb39a037c86ff9::t_31e9d35a571c8e 150-155,199-203
+codexmeter/payloads.py
+  s_fb39a037c86ff9::t_11d2e151df3ab5 80,95-96
+firmware/src/model.h
+  s_fb39a037c86ff9::t_7224c00a174927 18-19
+tests/test_events.py
+  s_fb39a037c86ff9::t_c719e388a3ffd3 89,93-119
+tests/test_payloads.py
+  s_fb39a037c86ff9::t_dbd6f7e1e74875 62-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "052034146602e1b68fd6d76fc105583dd3df7f59",
+  "prompts": {},
+  "sessions": {
+    "s_fb39a037c86ff9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f28ff-361a-71f1-9e7b-cc25bd27c020",
+        "model": "unknown"
+      },
+      "human_author": "yangxi.wxyz@bytedance.com <yangxi.wxyz@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
