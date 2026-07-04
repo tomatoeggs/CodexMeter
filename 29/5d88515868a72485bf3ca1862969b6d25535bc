@@ -1,0 +1,65 @@
+README.md
+  s_fb39a037c86ff9::t_b4dc2cd6267166 12-13,45-50,85-86,122-125,133,174-179,200-205,305,313,332-333
+codexmeter/ble.py
+  s_fb39a037c86ff9::t_c8ee2ed482f44a 29,138-140,170-172,189-197
+codexmeter/cli.py
+  s_fb39a037c86ff9::t_639e9379ddc664 66-73,100-107
+codexmeter/daemon.py
+  s_fb39a037c86ff9::t_57abfb67931424 15-22,54-65,104-113,141-142
+codexmeter/events.py
+  s_fb39a037c86ff9::t_ce7ad99033cd97 14-19,166-172
+codexmeter/payloads.py
+  s_fb39a037c86ff9::t_65e60ba44f357c 75-90
+codexmeter/screen_policy.py
+  s_fb39a037c86ff9::t_9a22f24aca7b8f 1-157
+codexmeter/settings.py
+  s_fb39a037c86ff9::t_a36fe666d2ab11 21-22
+docs/architecture.md
+  s_fb39a037c86ff9::t_4a824bb6df5295 19,26-27,52-75,110-111,118,159-164,168,177,195-196
+firmware/include/config.h
+  s_fb39a037c86ff9::t_e898094e3a5a64 24-27,30,34-39
+firmware/src/ble_service.cpp
+  s_fb39a037c86ff9::t_fe2a422f2b996d 25,139-142
+firmware/src/ble_service.h
+  s_fb39a037c86ff9::t_e307888f053bfd 12
+firmware/src/main.cpp
+  s_fb39a037c86ff9::t_44bbfff66fedd2 24,27-32,38,40-41,48-52,67-79,84-85,109-151,153,179-189,273-284,307-349,351,360-361,378
+firmware/src/model.cpp
+  s_fb39a037c86ff9::t_a75713dd4e7ebe 16-17,63-76
+firmware/src/model.h
+  s_fb39a037c86ff9::t_1fad24fc79afa1 32-39,45,52-53
+firmware/src/ui.cpp
+  s_fb39a037c86ff9::t_da289b96a36982 25-27,33-34,57-58,205-237,294-295,357-368,370-376
+firmware/src/ui.h
+  s_fb39a037c86ff9::t_f7e082ada238ad 10
+tests/run_tests.py
+  s_fb39a037c86ff9::t_ef6e2cf2978a53 19-21
+tests/test_ble.py
+  s_fb39a037c86ff9::t_7981ec94c18022 1-18
+tests/test_daemon.py
+  s_fb39a037c86ff9::t_45c8417f3fa3a2 1-23
+tests/test_events.py
+  s_fb39a037c86ff9::t_bb98641029d867 120-140
+tests/test_payloads.py
+  s_fb39a037c86ff9::t_27ff4e4c622b0c 8,71-85
+tests/test_screen_policy.py
+  s_fb39a037c86ff9::t_9fa61374bc29d7 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "295d88515868a72485bf3ca1862969b6d25535bc",
+  "prompts": {},
+  "sessions": {
+    "s_fb39a037c86ff9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f28ff-361a-71f1-9e7b-cc25bd27c020",
+        "model": "unknown"
+      },
+      "human_author": "yangxi.wxyz@bytedance.com <yangxi.wxyz@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
