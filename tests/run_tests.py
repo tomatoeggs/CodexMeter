@@ -15,8 +15,9 @@ sys.path.insert(0, str(ROOT))
 TEST_MODULES = [
     "tests.test_limits",
     "tests.test_payloads",
+    "tests.test_events",
     "tests.test_hook",
-    "tests.test_notify",
+    "tests.test_screenshot_tool",
 ]
 
 

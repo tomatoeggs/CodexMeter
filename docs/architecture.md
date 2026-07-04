@@ -15,15 +15,16 @@
 - `codexmeter.limits`：负责限额桶归一化，当前默认只读取 `codex` 桶，将 300 分钟映射为 `5h`，10080 分钟映射为 `7d`。
 - `codexmeter.payloads`：负责 BLE JSON payload 生成、摘要清洗、设备字库字符过滤和 512 bytes 长度约束。
 - `codexmeter.ble`：负责发现、连接和写入 `CodexMeter` BLE 外设；macOS 上会优先尝试找回已连接的 CoreBluetooth 外设。
-- `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hook、notify 包装器与 `codexmeterctl` 使用。
+- `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hooks 与 `codexmeterctl` 使用；同时维护运行中任务集合。
+- `hooks/codexmeter_start_hook.py`：负责接收 Codex `UserPromptSubmit` hook 输入，通知 daemon 有任务开始运行。
 - `hooks/codexmeter_stop_hook.py`：负责接收 Codex `Stop` hook 输入、生成短摘要并静默通知 daemon；异常时仍成功退出，不阻塞 Codex。
-- `hooks/codexmeter_notify.py`：负责包装 Codex `notify`，作为 hook 未被信任或未执行时的 turn-ended 兜底提醒，同时继续调用原通知命令。
 - `scripts/install_hook.py`：负责合并 CodexMeter `Stop` hook 到 `~/.codex/hooks.json`，并在覆盖前备份旧文件。
-- `scripts/install_notify.py`：负责包装 `~/.codex/config.toml` 中的 `notify` 配置，并保留原 notify 命令链。
 - `firmware/src/model.*`：负责解析 BLE JSON 为固件内部模型，并记录 `usage` payload 接收时的 `millis()`，用于后续倒计时计算。
 - `firmware/src/ui.*`：负责 LVGL 显示、余量卡片、电池图标、重置倒计时、红黄绿闪屏和任务完成视图。
 - `firmware/src/ble_service.*`：负责 GATT 服务、RX/TX、ACK/NACK 与刷新通知。
 - `firmware/src/power.*`：负责 AXP2101 电量和 PWR/按键事件。
+- `tools/capture_screenshot.py`：负责通过 USB 串口触发固件截图命令、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
+- `screenshot.sh`：截图工具入口，自动选择 Python 并转发参数。
 
 ## 数据流
 
@@ -34,11 +35,25 @@
    - 5h 显示为 `HH:MM 后重置`
    - 7d 显示为 `xd 后重置`
 5. 若 180 秒没有新用量，固件将状态标记为 `stale`，并等待下一次 daemon 更新或设备刷新请求。
-6. Codex turn 完成时优先触发用户级 `Stop` hook；若 hook 未被信任或未执行，Codex `notify` 包装器作为兜底。
-7. hook 或 notify 包装器从 `last_assistant_message`、`message`、`summary` 或 `text` 中生成不超过 96 字符的短摘要；没有摘要时使用默认完成文案。
-8. 摘要经 Unix socket 发送给 daemon。daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
-9. 固件收到 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
-10. 用户可按 BOOT/侧边按键提前关闭提醒。
+6. Codex `UserPromptSubmit` hook 触发时，start hook 通过 Unix socket 向 daemon 发送 `task_start`。
+7. daemon 用 `session_id`、`turn_id` 或 `cwd` 推导任务 key，维护运行中任务集合；计数变化时生成 `activity` payload。
+8. 固件收到 `activity` 后，在正常页底部居中显示对应数量的小蓝点；计数为 0 时隐藏。
+9. Codex turn 完成时触发用户级 `Stop` hook；Stop hook 从 `last_assistant_message` 中生成不超过 96 字符的短摘要。
+10. Stop hook 只发送一次 `task_complete` 事件。daemon 在同一个事件处理中先清除运行中任务，再构造 `alert` payload。
+11. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
+12. 固件收到 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
+13. 用户可按 BOOT/侧边按键提前关闭提醒。
+
+## USB 截图链路
+
+1. 用户或自动化脚本运行 `./screenshot.sh out.png [port]`。
+2. 宿主侧工具自动寻找 USB CDC 串口，或使用显式传入的 `/dev/cu.usbmodem...`。
+3. 工具向固件发送一行 `screenshot`。
+4. 固件刷新一次 LVGL，然后用 `lv_snapshot_take_to_draw_buf()` 将当前活动屏幕渲染到 PSRAM 中的 RGB565 缓冲区。
+5. 固件通过串口输出 `SCREENSHOT_START <width> <height> <bytes>`，随后写入原始 RGB565LE 字节，最后输出 `SCREENSHOT_END`。
+6. 宿主侧工具校验尺寸和字节数，把 RGB565LE 转为 RGB888，并使用 Python 标准库写出 PNG。
+
+该链路只用于调试和视觉 QA，不参与 BLE 数据协议，也不影响 macOS daemon 的运行职责。
 
 ## 显示模型
 
@@ -49,6 +64,7 @@
 - 顶部右侧：电量百分比和电池图标，填充色按电量变为绿色、黄色或红色。
 - 第一张卡片：`5h 剩余:`、剩余百分比、`HH:MM 后重置`。
 - 第二张卡片：`7d 剩余:`、剩余百分比、`xd 后重置`。
+- 底部：运行中 Codex 任务数指示。1 个任务显示 1 个小蓝点，2 个任务显示 2 个小蓝点；没有运行中任务时不显示。
 
 提醒页：
 
@@ -83,10 +99,16 @@ GATT UUID：
 {"v":1,"k":"alert","id":"...","title":"任务完成！","body":"摘要","t":1783070000}
 ```
 
+运行中任务 payload：
+
+```json
+{"v":1,"k":"activity","src":"codex","run":2,"t":1783070000}
+```
+
 字段说明：
 
 - `v`：协议版本。
-- `k`：payload 类型，当前支持 `usage` 和 `alert`。
+- `k`：payload 类型，当前支持 `usage`、`alert` 和 `activity`。
 - `src`：用量来源，首版为 `codex`。
 - `h5` / `d7`：剩余百分比，整数。
 - `h5r` / `d7r`：重置时间戳，单位为秒。
@@ -94,10 +116,11 @@ GATT UUID：
 - `t`：payload 生成时间戳；固件用它和本地 `millis()` 推算当前时间，避免依赖 ESP32 自身联网校时。
 - `id`：提醒事件 ID，默认由 daemon 生成短 UUID。
 - `title` / `body`：提醒标题和正文，发送前会做设备字库清洗和长度约束。
+- `run`：当前正在运行的 Codex 任务数量。
 
 ## 安装与运行
 
-- `install-mac.sh` 会创建 `.venv/`，安装 Python 包，写入 `~/Library/LaunchAgents/com.user.codexmeter.plist`，并加载 LaunchAgent。
+- `install-mac.sh` 会创建 `.venv/`，安装 Python 包，写入 `~/Library/LaunchAgents/com.user.codexmeter.plist`，安装 CodexMeter `UserPromptSubmit` / `Stop` hooks，并加载 LaunchAgent。
 - LaunchAgent 默认运行 `.venv/bin/codexmeterd --codex-bin <codex>`。
 - 如果 `codex` 不在默认 `PATH`，安装时可用 `CODEX_BIN=/path/to/codex ./install-mac.sh` 指定。
 - daemon 主日志写入 `~/.codexmeter/codexmeter.log`，LaunchAgent stdout/stderr 分别写入 `~/.codexmeter/codexmeter.out.log` 和 `~/.codexmeter/codexmeter.err.log`。
@@ -111,3 +134,4 @@ GATT UUID：
 - 固件 180 秒无新 usage 更新时进入 stale 状态。
 - alert 闪动步长为 180 ms，共 6 步；文字出现后停留 8 秒。
 - ESP32 端不联网校时，重置倒计时依赖 daemon payload 的 `t` 字段和设备本地运行时钟。
+- 480x480 RGB565 全帧截图约 450 KiB，当前仅在带 PSRAM 的目标板启用；无 PSRAM 固件会返回 `SCREENSHOT_UNSUPPORTED`。

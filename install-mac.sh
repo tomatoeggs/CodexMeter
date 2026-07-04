@@ -51,10 +51,16 @@ cat > "$PLIST" <<PLIST
 </plist>
 PLIST
 
-HOOK_COMMAND="$("$PY" -c 'import shlex, sys; print(" ".join(shlex.quote(arg) for arg in sys.argv[1:]))' "$PY" "$ROOT/hooks/codexmeter_stop_hook.py")"
-"$PY" "$ROOT/scripts/install_hook.py" --command "$HOOK_COMMAND"
-"$PY" "$ROOT/scripts/install_notify.py" --python "$PY" --script "$ROOT/hooks/codexmeter_notify.py"
-
+START_HOOK_COMMAND="$("$PY" -c 'import shlex, sys; print(" ".join(shlex.quote(arg) for arg in sys.argv[1:]))' "$PY" "$ROOT/hooks/codexmeter_start_hook.py")"
+STOP_HOOK_COMMAND="$("$PY" -c 'import shlex, sys; print(" ".join(shlex.quote(arg) for arg in sys.argv[1:]))' "$PY" "$ROOT/hooks/codexmeter_stop_hook.py")"
+"$PY" "$ROOT/scripts/install_hook.py" \
+  --event UserPromptSubmit \
+  --command "$START_HOOK_COMMAND" \
+  --status-message "Updating CodexMeter activity"
+"$PY" "$ROOT/scripts/install_hook.py" \
+  --event Stop \
+  --command "$STOP_HOOK_COMMAND" \
+  --status-message "Notifying CodexMeter"
 launchctl unload "$PLIST" >/dev/null 2>&1 || true
 launchctl load -w "$PLIST"
 

@@ -21,12 +21,24 @@ struct AlertModel {
   long received_at = 0;
 };
 
+struct ActivityModel {
+  bool valid = false;
+  int running_count = 0;
+  long updated_at = 0;
+};
+
 enum PayloadKind {
   PAYLOAD_NONE,
   PAYLOAD_USAGE,
   PAYLOAD_ALERT,
+  PAYLOAD_ACTIVITY,
 };
 
-PayloadKind parse_payload(const char* json, UsageModel* usage, AlertModel* alert);
+PayloadKind parse_payload(
+    const char* json,
+    UsageModel* usage,
+    AlertModel* alert,
+    ActivityModel* activity);
 void usage_apply_demo(UsageModel* usage);
 void alert_apply_demo(AlertModel* alert);
+void activity_apply_demo(ActivityModel* activity, int running_count);

@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class BleState:
     last_usage: Payload | None = None
+    last_activity: Payload | None = None
     last_payload: Payload | None = None
 
 
@@ -136,6 +137,9 @@ class BleTransport:
             if state.last_usage is not None:
                 await self._write_payload(client, state.last_usage)
                 used_successfully = True
+            if state.last_activity is not None:
+                await self._write_payload(client, state.last_activity)
+                used_successfully = True
 
             while client.is_connected and not stop_event.is_set():
                 payload_task = asyncio.create_task(queue.get())
@@ -163,6 +167,8 @@ class BleTransport:
                     state.last_payload = payload
                     if payload.kind == "usage":
                         state.last_usage = payload
+                    elif payload.kind == "activity":
+                        state.last_activity = payload
                     used_successfully = True
 
         log.info("BLE disconnected from %s", display)

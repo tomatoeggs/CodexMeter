@@ -10,7 +10,7 @@ import sys
 
 from .ble import BleState, BleTransport
 from .events import EventServer
-from .payloads import Payload, build_usage_payload
+from .payloads import Payload, build_activity_payload, build_usage_payload
 from .provider import CodexUsageProvider
 from .settings import APP_DIR, LOG_FILE, POLL_INTERVAL_SEC
 
@@ -73,6 +73,7 @@ async def run_daemon(args: argparse.Namespace) -> None:
         refresh_token=args.refresh_token,
     )
     ble_state = BleState()
+    ble_state.last_activity = build_activity_payload(0)
     transport = BleTransport(device_name=args.device_name, scan_timeout_sec=args.scan_timeout)
     event_server = EventServer(sink)
 

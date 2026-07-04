@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
-"""Codex Stop hook that notifies the local CodexMeter daemon.
-
-The hook must never block Codex completion. Any socket or JSON error exits
-successfully with a tiny JSON response accepted by the Stop hook contract.
-"""
+"""Codex UserPromptSubmit hook that marks a Codex task as running."""
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import socket
 import sys
 from pathlib import Path
@@ -24,36 +19,16 @@ def main() -> int:
         hook_input = json.load(sys.stdin)
         if not isinstance(hook_input, dict):
             hook_input = {}
-    except Exception:
-        hook_input = {}
-
-    try:
-        summary = summarize(str(hook_input.get("last_assistant_message") or ""))
-        send_task_complete(summary, hook_input)
+        send_task_start(hook_input)
     except Exception:
         pass
     sys.stdout.write(json.dumps({"continue": True}, separators=(",", ":")))
     return 0
 
 
-def summarize(message: str, max_chars: int = 96) -> str:
-    text = re.sub(r"```.*?```", " ", message, flags=re.S)
-    text = re.sub(r"`([^`]*)`", r"\1", text)
-    text = re.sub(r"[*_#>\-]+", " ", text)
-    text = " ".join(part.strip() for part in text.splitlines() if part.strip())
-    text = re.sub(r"\s+", " ", text).strip()
-    if not text:
-        text = "Codex 任务已完成"
-    if len(text) <= max_chars:
-        return text
-    return text[: max_chars - 3].rstrip() + "..."
-
-
-def send_task_complete(summary: str, hook_input: dict[str, Any]) -> None:
+def send_task_start(hook_input: dict[str, Any]) -> None:
     event = {
-        "type": "task_complete",
-        "title": "任务完成！",
-        "body": summary,
+        "type": "task_start",
         "source": "codex",
         "session_id": hook_input.get("session_id"),
         "conversation_id": hook_input.get("conversation_id"),

@@ -7,7 +7,11 @@ static void copy_text(char* dst, size_t dst_size, const char* src) {
   strlcpy(dst, src, dst_size);
 }
 
-PayloadKind parse_payload(const char* json, UsageModel* usage, AlertModel* alert) {
+PayloadKind parse_payload(
+    const char* json,
+    UsageModel* usage,
+    AlertModel* alert,
+    ActivityModel* activity) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
   if (err) {
@@ -37,6 +41,14 @@ PayloadKind parse_payload(const char* json, UsageModel* usage, AlertModel* alert
     return PAYLOAD_ALERT;
   }
 
+  if (strcmp(kind, "activity") == 0) {
+    activity->valid = true;
+    activity->running_count = doc["run"] | 0;
+    if (activity->running_count < 0) activity->running_count = 0;
+    activity->updated_at = doc["t"] | 0L;
+    return PAYLOAD_ACTIVITY;
+  }
+
   Serial.printf("Unknown payload kind: %s\n", kind);
   return PAYLOAD_NONE;
 }
@@ -62,4 +74,12 @@ void alert_apply_demo(AlertModel* alert) {
   copy_text(alert->title, sizeof(alert->title), "任务完成！");
   copy_text(alert->body, sizeof(alert->body), "Codex 已完成一个测试任务");
   alert->received_at = now;
+}
+
+void activity_apply_demo(ActivityModel* activity, int running_count) {
+  long now = time(nullptr);
+  if (now < 1000) now = 1783070000;
+  activity->valid = true;
+  activity->running_count = running_count < 0 ? 0 : running_count;
+  activity->updated_at = now;
 }

@@ -27,6 +27,7 @@ static uint16_t* lv_buf_1 = nullptr;
 static uint16_t* lv_buf_2 = nullptr;
 static UsageModel usage;
 static AlertModel alert;
+static ActivityModel activity;
 static uint32_t last_usage_ms = 0;
 
 static uint32_t lv_tick() {
@@ -76,7 +77,7 @@ static void display_init() {
 }
 
 static void handle_json(const char* json) {
-  PayloadKind kind = parse_payload(json, &usage, &alert);
+  PayloadKind kind = parse_payload(json, &usage, &alert, &activity);
   if (kind == PAYLOAD_USAGE) {
     last_usage_ms = millis();
     ui_update_usage(usage);
@@ -84,9 +85,60 @@ static void handle_json(const char* json) {
   } else if (kind == PAYLOAD_ALERT) {
     ui_show_alert(alert);
     ble_service_ack();
+  } else if (kind == PAYLOAD_ACTIVITY) {
+    ui_update_activity(activity);
+    ble_service_ack();
   } else {
     ble_service_nack();
   }
+}
+
+static void send_screenshot() {
+#ifndef BOARD_HAS_PSRAM
+  Serial.println("SCREENSHOT_UNSUPPORTED");
+  return;
+#else
+  const uint32_t w = CODEXMETER_SCREEN_W;
+  const uint32_t h = CODEXMETER_SCREEN_H;
+  const uint32_t row_bytes = w * sizeof(uint16_t);
+  const uint32_t buf_size = row_bytes * h;
+
+  uint8_t* sbuf = (uint8_t*)heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
+  if (!sbuf) {
+    Serial.println("SCREENSHOT_ERR");
+    return;
+  }
+
+  lv_timer_handler();
+  lv_refr_now(nullptr);
+
+  lv_draw_buf_t draw_buf;
+  lv_result_t init_res =
+      lv_draw_buf_init(&draw_buf, w, h, LV_COLOR_FORMAT_RGB565, row_bytes, sbuf, buf_size);
+  if (init_res != LV_RESULT_OK) {
+    heap_caps_free(sbuf);
+    Serial.println("SCREENSHOT_ERR");
+    return;
+  }
+
+  lv_result_t res =
+      lv_snapshot_take_to_draw_buf(lv_screen_active(), LV_COLOR_FORMAT_RGB565, &draw_buf);
+  if (res != LV_RESULT_OK) {
+    heap_caps_free(sbuf);
+    Serial.println("SCREENSHOT_ERR");
+    return;
+  }
+
+  Serial.printf(
+      "SCREENSHOT_START %lu %lu %lu\n", (unsigned long)w, (unsigned long)h,
+      (unsigned long)buf_size);
+  Serial.flush();
+  Serial.write(sbuf, buf_size);
+  Serial.flush();
+  Serial.println();
+  Serial.println("SCREENSHOT_END");
+  heap_caps_free(sbuf);
+#endif
 }
 
 static void handle_serial() {
@@ -103,6 +155,14 @@ static void handle_serial() {
       } else if (strcmp(buf, "demo_alert") == 0) {
         alert_apply_demo(&alert);
         ui_show_alert(alert);
+      } else if (strcmp(buf, "demo_activity") == 0) {
+        activity_apply_demo(&activity, 3);
+        ui_update_activity(activity);
+      } else if (strcmp(buf, "demo_idle") == 0) {
+        activity_apply_demo(&activity, 0);
+        ui_update_activity(activity);
+      } else if (strcmp(buf, "screenshot") == 0) {
+        send_screenshot();
       } else if (buf[0] == '{') {
         handle_json(buf);
       }

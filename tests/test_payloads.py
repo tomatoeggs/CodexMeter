@@ -3,6 +3,7 @@ import json
 from codexmeter.limits import UsageSnapshot
 from codexmeter.payloads import (
     MAX_BLE_PAYLOAD_BYTES,
+    build_activity_payload,
     build_alert_payload,
     build_usage_payload,
     sanitize_device_text,
@@ -27,6 +28,20 @@ def test_usage_payload_shape_and_size():
     assert decoded["k"] == "usage"
     assert decoded["h5"] == 72
     assert decoded["d7"] == 84
+
+
+def test_activity_payload_shape_and_size():
+    payload = build_activity_payload(3, now=1783070000)
+    encoded = payload.to_json_bytes()
+    decoded = json.loads(encoded)
+    assert len(encoded) <= MAX_BLE_PAYLOAD_BYTES
+    assert decoded == {
+        "v": 1,
+        "k": "activity",
+        "src": "codex",
+        "run": 3,
+        "t": 1783070000,
+    }
 
 
 def test_alert_payload_truncates_to_ble_limit():

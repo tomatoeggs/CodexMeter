@@ -18,6 +18,7 @@ static lv_obj_t* h5_pct;
 static lv_obj_t* h5_reset;
 static lv_obj_t* d7_pct;
 static lv_obj_t* d7_reset;
+static lv_obj_t* activity_dots[12];
 static lv_obj_t* alert_layer;
 static lv_obj_t* alert_title;
 static lv_obj_t* alert_body;
@@ -44,6 +45,10 @@ static const int ALERT_TEXT_W = CODEXMETER_SCREEN_W - 64;
 static const int ALERT_TEXT_X = 32;
 static const int ALERT_TITLE_Y = 126;
 static const int ALERT_BODY_Y = 190;
+static const int ACTIVITY_MAX_DOTS = 12;
+static const int ACTIVITY_DOT_SIZE = 10;
+static const int ACTIVITY_DOT_GAP = 9;
+static const int ACTIVITY_DOT_Y = 452;
 
 static const lv_font_t* ui_font() {
   return &codexmeter_font_30;
@@ -138,6 +143,17 @@ static lv_obj_t* make_battery_icon(lv_obj_t* parent) {
   return icon;
 }
 
+static lv_obj_t* make_activity_dot(lv_obj_t* parent) {
+  lv_obj_t* dot = lv_obj_create(parent);
+  strip_obj(dot);
+  lv_obj_set_size(dot, ACTIVITY_DOT_SIZE, ACTIVITY_DOT_SIZE);
+  lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(dot, CODEX_BLUE, 0);
+  lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+  lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+  return dot;
+}
+
 static lv_color_t battery_fill_color(int pct) {
   if (pct <= 20) return BATTERY_RED;
   if (pct <= 50) return BATTERY_YELLOW;
@@ -214,6 +230,10 @@ void ui_init() {
   d7_reset = make_label(content_d7, "-- 后重置", ui_font(), DIM);
   lv_obj_align(d7_reset, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 
+  for (int i = 0; i < ACTIVITY_MAX_DOTS; i++) {
+    activity_dots[i] = make_activity_dot(screen);
+  }
+
   alert_layer = lv_obj_create(screen);
   lv_obj_set_size(alert_layer, CODEXMETER_SCREEN_W, CODEXMETER_SCREEN_H);
   lv_obj_set_pos(alert_layer, 0, 0);
@@ -238,6 +258,29 @@ void ui_update_usage(const UsageModel& usage) {
   lv_label_set_text(h5_reset, h5_reset_text(usage).c_str());
   lv_label_set_text(d7_pct, pct_text(usage.d7_remaining).c_str());
   lv_label_set_text(d7_reset, d7_reset_text(usage).c_str());
+}
+
+void ui_update_activity(const ActivityModel& activity) {
+  int count = activity.running_count;
+  if (count < 0) count = 0;
+  if (count > ACTIVITY_MAX_DOTS) count = ACTIVITY_MAX_DOTS;
+
+  int total_w = count > 0
+                    ? count * ACTIVITY_DOT_SIZE + (count - 1) * ACTIVITY_DOT_GAP
+                    : 0;
+  int start_x = (CODEXMETER_SCREEN_W - total_w) / 2;
+
+  for (int i = 0; i < ACTIVITY_MAX_DOTS; i++) {
+    if (i < count) {
+      lv_obj_set_pos(
+          activity_dots[i],
+          start_x + i * (ACTIVITY_DOT_SIZE + ACTIVITY_DOT_GAP),
+          ACTIVITY_DOT_Y);
+      lv_obj_clear_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  }
 }
 
 void ui_show_alert(const AlertModel& alert) {

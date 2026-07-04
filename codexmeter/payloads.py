@@ -16,7 +16,7 @@ MAX_BLE_PAYLOAD_BYTES = 512
 MAX_ALERT_BODY_BYTES = 210
 DEVICE_TEXT_CHARS = (
     "剩余用量重置任务完成测试提醒等待已一个月日摘要内容构建运行编译烧录失败成功结束"
-    "项目修复检查通过更新刷新连接断开错误正常通知兜底链路乱码信息详情调整固件显示"
+    "项目修复检查通过更新刷新连接断开错误正常通知乱码信息详情调整固件显示"
     "界面功能生效请看查看文件目录代码函数模块配置脚本依赖安装服务后台蓝牙设备屏幕"
     "字体样式布局页面组件按钮日志单元异常优化新增删除重启启动停止读取写入解析发送"
     "接收队列事件状态结果验证问题原因方案实现继续准备可以无法需要注意默认支持保持"
@@ -55,6 +55,21 @@ def build_usage_payload(snapshot: UsageSnapshot) -> Payload:
         "t": snapshot.generated_at,
     }
     return Payload("usage", data)
+
+
+def build_activity_payload(
+    running_count: int,
+    source: str = "codex",
+    now: int | None = None,
+) -> Payload:
+    data = {
+        "v": 1,
+        "k": "activity",
+        "src": source,
+        "run": max(0, int(running_count)),
+        "t": int(now if now is not None else time.time()),
+    }
+    return Payload("activity", data)
 
 
 def build_alert_payload(

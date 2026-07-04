@@ -57,6 +57,12 @@ async def run_demo_usage(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") else 1
 
 
+async def run_demo_activity(args: argparse.Namespace) -> int:
+    result = await send_event({"type": "activity", "count": args.count})
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("ok") else 1
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CodexMeter helper CLI.")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -78,6 +84,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     usage.add_argument("--h5", type=int, default=72)
     usage.add_argument("--d7", type=int, default=84)
     usage.set_defaults(func=run_demo_usage)
+
+    activity = sub.add_parser("demo-activity", help="Queue a demo running-task count.")
+    activity.add_argument("--count", type=int, default=1)
+    activity.set_defaults(func=run_demo_activity)
 
     return parser.parse_args(argv)
 
