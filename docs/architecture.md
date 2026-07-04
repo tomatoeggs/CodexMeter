@@ -4,6 +4,7 @@
 
 - Codex 剩余用量以本仓库的 `codex_limits_demo.py` 为准：通过 `codex app-server --listen stdio://` 走 JSON-RPC，初始化后读取 `account/read` 与 `account/rateLimits/read`。
 - Clawdmeter 的硬件目标是 Waveshare ESP32-S3-Touch-AMOLED-2.16，屏幕为 480x480 CO5300，PMU 为 AXP2101；CodexMeter 首版保持同一硬件。
+- Waveshare ESP32-S3-Touch-AMOLED-2.16 板载 QMI8658 六轴 IMU，固件通过加速度计判断重力方向；CO5300 驱动不可靠提供 90/270 度硬件旋转，因此首版采用 CPU 侧局部刷新旋转。
 - BLE 沿用 Clawdmeter 的自定义数据服务 UUID：service `...0001`，RX write `...0002`，TX notify `...0003`。CodexMeter 额外保留 `...0004` 作为设备主动请求刷新信号。
 - 固件保持 PlatformIO、Arduino_GFX、LVGL、ArduinoJson、NimBLE 技术栈，以降低硬件适配风险。
 - 首版只面向 macOS + Waveshare ESP32-S3-Touch-AMOLED-2.16 + Codex 订阅余量，但协议中的 `src` 和模块边界为未来其他订阅来源预留了空间。
@@ -24,7 +25,9 @@
 - `firmware/src/ui.*`：负责 LVGL 显示、余量卡片、电池图标、重置倒计时、红黄绿闪屏和任务完成视图。
 - `firmware/src/ble_service.*`：负责 GATT 服务、RX/TX、ACK/NACK 与刷新通知。
 - `firmware/src/power.*`：负责 AXP2101 电量和中间 PKEY 事件。
-- `firmware/src/main.cpp`：负责板级初始化、主循环调度、串口调试命令、LVGL flush、AMOLED 亮屏/关屏和亮度控制。
+- `firmware/src/imu.*`：负责 QMI8658 初始化、加速度采样、方向防抖、自动/手动旋转模式和 IMU 串口状态输出。
+- `firmware/src/display_rotation.*`：负责把 LVGL 局部刷新区域按当前方向旋转后写入 CO5300，并让 USB 截图输出当前物理方向。
+- `firmware/src/main.cpp`：负责板级初始化、主循环调度、串口调试命令、LVGL flush、AMOLED 亮屏/关屏、亮度控制和方向变化重绘。
 - `firmware/src/device_log.*`：负责 ESP32 端关键事件环形日志、实时串口打印和按需日志 dump。
 - `tools/capture_screenshot.py`：负责通过 USB 串口触发固件截图命令、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
 - `tools/read_device_logs.py`：负责通过 USB 串口查询、清空或跟随 ESP32 设备日志。
@@ -65,6 +68,18 @@
 9. daemon 队列只保留最新一条 `control` payload；BLE 写入前还会跳过锁屏期间遗留的过期亮屏控制，避免状态反转。
 10. 屏幕关闭只影响面板显示；BLE、任务计数、用量刷新、截图和日志链路继续运行。
 
+## 屏幕方向自适应链路
+
+1. 固件启动时在共享 I2C 总线上初始化 QMI8658，并启用加速度计低功耗采样。
+2. `imu_tick()` 每 100ms 读取一次三轴加速度，使用简单低通滤波和阈值排除平放、倒扣等方向不明确状态。
+3. 当某个候选方向持续稳定超过 350ms 后，IMU 模块才更新当前方向，避免拿起设备时画面抖动。
+4. 方向以 0/1/2/3 表示，分别对应 0/90/180/270 度顺时针旋转。
+5. LVGL 仍以 480x480 逻辑坐标渲染；`display_rotation_draw()` 在 flush 出口把局部 RGB565 区域旋转到物理坐标后再写入 CO5300。
+6. 方向变化时，主循环先把屏幕亮度降为 0，强制整屏 invalidate 和刷新，然后用 4 个小步恢复到用户设置的亮度。
+7. 屏幕关闭时仍会更新方向状态；再次亮屏时会刷新到最新方向。
+8. 串口调试支持 `imu` 查看加速度读数和当前方向，`rotate auto` 恢复自动旋转，`rotate 0/90/180/270` 手动锁定方向。
+9. `screenshot` 命令会在输出前按当前方向旋转快照，因此 USB 视觉 QA 看到的画面与设备物理显示一致。
+
 ## 亮度控制链路
 
 1. 左键 GPIO0 短按降低亮度，右键 GPIO18 短按增加亮度，中间 AXP2101 PKEY 不参与亮度调节。
@@ -80,7 +95,7 @@
 2. 宿主侧工具自动寻找 USB CDC 串口，或使用显式传入的 `/dev/cu.usbmodem...`。
 3. 工具向固件发送一行 `screenshot`。
 4. 固件刷新一次 LVGL，然后用 `lv_snapshot_take_to_draw_buf()` 将当前活动屏幕渲染到 PSRAM 中的 RGB565 缓冲区。
-5. 固件通过串口输出 `SCREENSHOT_START <width> <height> <bytes>`，随后写入原始 RGB565LE 字节，最后输出 `SCREENSHOT_END`。
+5. 固件会按当前屏幕方向旋转快照，再通过串口输出 `SCREENSHOT_START <width> <height> <bytes>`，随后写入原始 RGB565LE 字节，最后输出 `SCREENSHOT_END`。
 6. 宿主侧工具校验尺寸和字节数，把 RGB565LE 转为 RGB888，并使用 Python 标准库写出 PNG。
 
 该链路只用于调试和视觉 QA，不参与 BLE 数据协议，也不影响 macOS daemon 的运行职责。
@@ -109,6 +124,7 @@
 - 底部：运行中 Codex 任务数指示。1 个任务显示 1 个小蓝点，2 个任务显示 2 个小蓝点；没有运行中任务时不显示。
 - 按键：中间短按切换 AMOLED 亮屏和关闭；左/右短按调节亮度；关屏不影响后台数据更新。
 - 亮度浮层：调整亮度时显示百分比和进度条，3 秒后自动隐藏。
+- 方向：设备竖放、横放或倒置时，整个正常页会随重力方向自动旋转。
 
 提醒页：
 
