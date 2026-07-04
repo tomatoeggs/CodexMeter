@@ -22,7 +22,7 @@ static uint8_t rx_tail = 0;
 static uint8_t rx_count = 0;
 static portMUX_TYPE rx_mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool should_advertise = false;
-static bool connected = false;
+static volatile bool connected = false;
 
 static void start_advertising() {
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
@@ -135,4 +135,8 @@ void ble_service_request_refresh() {
   uint8_t value = 1;
   req_char->setValue(&value, 1);
   req_char->notify();
+}
+
+bool ble_service_connected() {
+  return connected;
 }

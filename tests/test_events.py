@@ -117,3 +117,24 @@ def test_task_complete_alert_carries_remaining_activity_count():
         assert payloads[-1].data["run"] == 1
 
     asyncio.run(scenario())
+
+
+def test_screen_event_queues_control_payload():
+    async def scenario():
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(sink)
+        result = await server._dispatch(
+            {"type": "screen", "on": False, "reason": "manual"}
+        )
+
+        assert result == {"ok": True, "queued": "screen", "on": False}
+        assert payloads[-1].kind == "control"
+        assert payloads[-1].data["cmd"] == "screen"
+        assert payloads[-1].data["on"] is False
+        assert payloads[-1].data["why"] == "manual"
+
+    asyncio.run(scenario())

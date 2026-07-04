@@ -11,7 +11,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .payloads import Payload, build_activity_payload, build_alert_payload
+from .payloads import (
+    Payload,
+    build_activity_payload,
+    build_alert_payload,
+    build_screen_control_payload,
+)
 from .settings import EVENT_SOCKET
 
 log = logging.getLogger(__name__)
@@ -158,6 +163,13 @@ class EventServer:
             return {"ok": True, "queued": "alert"}
         if event_type == "task_complete":
             return await self._dispatch_task_complete(event)
+        if event_type == "screen":
+            on = bool(event.get("on"))
+            reason = str(event.get("reason") or "manual")
+            payload = build_screen_control_payload(on, reason=reason)
+            await self.sink(payload)
+            log.info("Queued screen control on=%s reason=%s", on, reason)
+            return {"ok": True, "queued": "screen", "on": on}
         if event_type in ("task_start", "task_finish", "activity"):
             return await self._dispatch_activity(event)
         if event_type == "usage":

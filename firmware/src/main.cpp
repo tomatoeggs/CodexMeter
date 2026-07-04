@@ -21,21 +21,35 @@
 static Arduino_DataBus* bus = new Arduino_ESP32QSPI(
     CODEXMETER_LCD_CS, CODEXMETER_LCD_SCLK, CODEXMETER_LCD_D0, CODEXMETER_LCD_D1,
     CODEXMETER_LCD_D2, CODEXMETER_LCD_D3);
-static Arduino_GFX* gfx = new Arduino_CO5300(
+static Arduino_CO5300* gfx = new Arduino_CO5300(
     bus, CODEXMETER_LCD_RST, 0, CODEXMETER_SCREEN_W, CODEXMETER_SCREEN_H, 0, 0, 0, 0);
+
+struct GpioButtonState {
+  uint8_t pin;
+  bool was_down;
+  uint32_t last_press_ms;
+};
 
 static uint16_t* lv_buf_1 = nullptr;
 static uint16_t* lv_buf_2 = nullptr;
 static UsageModel usage;
 static AlertModel alert;
 static ActivityModel activity;
+static ControlModel control;
 static uint32_t last_usage_ms = 0;
+static bool screen_on = true;
+static int brightness_percent = CODEXMETER_BRIGHTNESS_DEFAULT;
 
 static uint32_t lv_tick() {
   return millis();
 }
 
 static void lv_flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+  if (!screen_on) {
+    lv_display_flush_ready(disp);
+    return;
+  }
+
   int32_t w = area->x2 - area->x1 + 1;
   int32_t h = area->y2 - area->y1 + 1;
   gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t*)px_map, w, h);
@@ -50,10 +64,25 @@ static void lv_rounder(lv_event_t* event) {
   area->y2 = area->y2 | 1;
 }
 
+static int clamp_brightness(int pct) {
+  if (pct < CODEXMETER_BRIGHTNESS_MIN) return CODEXMETER_BRIGHTNESS_MIN;
+  if (pct > CODEXMETER_BRIGHTNESS_MAX) return CODEXMETER_BRIGHTNESS_MAX;
+  return pct;
+}
+
+static void apply_brightness() {
+  int pct = clamp_brightness(brightness_percent);
+  uint8_t raw = (uint8_t)((pct * 255 + 50) / 100);
+  if (raw == 0) raw = 1;
+  gfx->setBrightness(raw);
+}
+
 static void display_init() {
   if (!gfx->begin()) {
     device_logf("ERROR", "gfx begin failed");
   }
+  screen_on = true;
+  apply_brightness();
   gfx->fillScreen(0x0000);
 
   lv_init();
@@ -77,8 +106,51 @@ static void display_init() {
       LV_DISPLAY_RENDER_MODE_PARTIAL);
 }
 
+static const char* non_empty_reason(const char* reason) {
+  return reason && reason[0] ? reason : "control";
+}
+
+static void set_screen_on(bool on, const char* reason) {
+  if (screen_on == on) return;
+
+  screen_on = on;
+  if (screen_on) {
+    gfx->displayOn();
+    apply_brightness();
+    lv_obj_invalidate(lv_screen_active());
+    lv_refr_now(nullptr);
+    device_logf("INFO", "screen on %s", non_empty_reason(reason));
+  } else {
+    if (ui_alert_visible()) {
+      ui_dismiss_alert();
+    }
+    gfx->displayOff();
+    device_logf("INFO", "screen off %s", non_empty_reason(reason));
+  }
+}
+
+static void toggle_screen(const char* reason) {
+  set_screen_on(!screen_on, reason);
+}
+
+static void set_brightness_percent(int pct, const char* reason) {
+  brightness_percent = clamp_brightness(pct);
+  if (!screen_on) {
+    set_screen_on(true, "brightness");
+  }
+  apply_brightness();
+  ui_show_brightness(brightness_percent);
+  device_logf(
+      "INFO", "brightness %d reason=%s", brightness_percent,
+      non_empty_reason(reason));
+}
+
+static void adjust_brightness(int delta, const char* reason) {
+  set_brightness_percent(brightness_percent + delta, reason);
+}
+
 static void handle_json(const char* json) {
-  PayloadKind kind = parse_payload(json, &usage, &alert, &activity);
+  PayloadKind kind = parse_payload(json, &usage, &alert, &activity, &control);
   if (kind == PAYLOAD_USAGE) {
     last_usage_ms = millis();
     ui_update_usage(usage);
@@ -104,6 +176,17 @@ static void handle_json(const char* json) {
     ui_update_activity(activity);
     device_logf("INFO", "activity run=%d", activity.running_count);
     ble_service_ack();
+  } else if (kind == PAYLOAD_CONTROL) {
+    if (strcmp(control.command, "screen") == 0) {
+      set_screen_on(control.screen_on, control.reason);
+      device_logf(
+          "INFO", "control screen=%d reason=%s", control.screen_on ? 1 : 0,
+          non_empty_reason(control.reason));
+      ble_service_ack();
+    } else {
+      device_logf("WARN", "invalid control command");
+      ble_service_nack();
+    }
   } else {
     device_logf("WARN", "invalid payload");
     ble_service_nack();
@@ -187,6 +270,18 @@ static void handle_serial() {
         activity_apply_demo(&activity, 0);
         ui_update_activity(activity);
         device_logf("INFO", "serial demo_idle");
+      } else if (strcmp(buf, "screen_on") == 0) {
+        set_screen_on(true, "serial");
+      } else if (strcmp(buf, "screen_off") == 0) {
+        set_screen_on(false, "serial");
+      } else if (strcmp(buf, "screen_toggle") == 0) {
+        toggle_screen("serial");
+      } else if (strcmp(buf, "brightness_up") == 0) {
+        adjust_brightness(CODEXMETER_BRIGHTNESS_STEP, "serial");
+      } else if (strcmp(buf, "brightness_down") == 0) {
+        adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "serial");
+      } else if (strncmp(buf, "brightness ", 11) == 0) {
+        set_brightness_percent(atoi(buf + 11), "serial");
       } else if (strcmp(buf, "screenshot") == 0) {
         send_screenshot();
       } else if (strncmp(buf, "logs", 4) == 0 && (buf[4] == '\0' || buf[4] == ' ')) {
@@ -209,12 +304,51 @@ static void handle_serial() {
 }
 
 static void handle_button() {
-  static bool was_down = false;
-  bool down = digitalRead(CODEXMETER_BUTTON_PIN) == LOW;
-  if (((down && !was_down) || power_button_pressed()) && ui_alert_visible()) {
-    ui_dismiss_alert();
+  static GpioButtonState left = {CODEXMETER_BUTTON_LEFT_PIN, false, 0};
+  static GpioButtonState right = {CODEXMETER_BUTTON_RIGHT_PIN, false, 0};
+
+  auto pressed = [](GpioButtonState* button) {
+    bool down = digitalRead(button->pin) == LOW;
+    bool edge = down && !button->was_down;
+    uint32_t now = millis();
+    bool accepted = edge && now - button->last_press_ms >= 120;
+    if (accepted) {
+      button->last_press_ms = now;
+    }
+    button->was_down = down;
+    return accepted;
+  };
+
+  if (pressed(&left)) {
+    adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "left");
   }
-  was_down = down;
+  if (pressed(&right)) {
+    adjust_brightness(CODEXMETER_BRIGHTNESS_STEP, "right");
+  }
+  if (power_button_pressed()) {
+    toggle_screen("button");
+  }
+}
+
+static void handle_ble_screen_policy() {
+  static bool was_connected = false;
+  static uint32_t disconnected_since_ms = 0;
+  static bool disconnect_screen_off_sent = false;
+
+  bool connected = ble_service_connected();
+  uint32_t now = millis();
+  if (connected) {
+    disconnected_since_ms = 0;
+    disconnect_screen_off_sent = false;
+  } else if (was_connected || disconnected_since_ms == 0) {
+    disconnected_since_ms = now;
+    disconnect_screen_off_sent = false;
+  } else if (!disconnect_screen_off_sent &&
+             now - disconnected_since_ms >= CODEXMETER_AUTO_SCREEN_AFTER_MS) {
+    set_screen_on(false, "ble_timeout");
+    disconnect_screen_off_sent = true;
+  }
+  was_connected = connected;
 }
 
 void setup() {
@@ -223,7 +357,8 @@ void setup() {
   Serial.println("{\"ready\":true,\"device\":\"CodexMeter\"}");
   device_logf("INFO", "device ready");
 
-  pinMode(CODEXMETER_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(CODEXMETER_BUTTON_LEFT_PIN, INPUT_PULLUP);
+  pinMode(CODEXMETER_BUTTON_RIGHT_PIN, INPUT_PULLUP);
   power_init();
   display_init();
   ui_init();
@@ -240,6 +375,7 @@ void loop() {
   ui_tick();
   power_tick();
   ble_service_tick();
+  handle_ble_screen_policy();
   handle_button();
   handle_serial();
 

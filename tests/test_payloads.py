@@ -5,6 +5,7 @@ from codexmeter.payloads import (
     MAX_BLE_PAYLOAD_BYTES,
     build_activity_payload,
     build_alert_payload,
+    build_screen_control_payload,
     build_usage_payload,
     sanitize_device_text,
 )
@@ -65,6 +66,21 @@ def test_alert_payload_can_carry_running_count():
     assert decoded["k"] == "alert"
     assert decoded["run"] == 0
     assert len(payload.to_json_bytes()) <= MAX_BLE_PAYLOAD_BYTES
+
+
+def test_screen_control_payload_shape_and_size():
+    payload = build_screen_control_payload(False, reason="mac_locked", now=1783070000)
+    encoded = payload.to_json_bytes()
+    decoded = json.loads(encoded)
+    assert len(encoded) <= MAX_BLE_PAYLOAD_BYTES
+    assert decoded == {
+        "v": 1,
+        "k": "control",
+        "cmd": "screen",
+        "on": False,
+        "why": "mac_locked",
+        "t": 1783070000,
+    }
 
 
 def test_sanitize_device_text_falls_back_when_empty():

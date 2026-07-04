@@ -21,12 +21,19 @@
 #define CODEXMETER_I2C_SCL 14
 #define CODEXMETER_AXP2101_ADDR 0x34
 
-// BOOT/left side button is enough for dismissing alerts in v1. Touch support
-// can be added behind the same ui_dismiss_alert() call once the touch driver is
-// validated on the physical board.
-#define CODEXMETER_BUTTON_PIN 0
+// Waveshare ESP32-S3-Touch-AMOLED-2.16 has three side buttons:
+// left GPIO0, middle AXP2101 PKEY, right GPIO18.
+#define CODEXMETER_BUTTON_LEFT_PIN 0
+#define CODEXMETER_BUTTON_RIGHT_PIN 18
 
 #define CODEXMETER_STALE_AFTER_MS (180UL * 1000UL)
+#define CODEXMETER_AUTO_SCREEN_AFTER_MS (5UL * 60UL * 1000UL)
 #define CODEXMETER_ALERT_HOLD_MS 8000UL
 #define CODEXMETER_FLASH_STEP_MS 180UL
 #define CODEXMETER_FLASH_STEPS 6
+
+#define CODEXMETER_BRIGHTNESS_DEFAULT 80
+#define CODEXMETER_BRIGHTNESS_MIN 10
+#define CODEXMETER_BRIGHTNESS_MAX 100
+#define CODEXMETER_BRIGHTNESS_STEP 10
+#define CODEXMETER_BRIGHTNESS_OVERLAY_MS 3000UL

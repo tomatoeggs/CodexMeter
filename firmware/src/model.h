@@ -29,18 +29,28 @@ struct ActivityModel {
   long updated_at = 0;
 };
 
+struct ControlModel {
+  bool valid = false;
+  bool screen_on = true;
+  char command[16] = "";
+  char reason[32] = "";
+  long updated_at = 0;
+};
+
 enum PayloadKind {
   PAYLOAD_NONE,
   PAYLOAD_USAGE,
   PAYLOAD_ALERT,
   PAYLOAD_ACTIVITY,
+  PAYLOAD_CONTROL,
 };
 
 PayloadKind parse_payload(
     const char* json,
     UsageModel* usage,
     AlertModel* alert,
-    ActivityModel* activity);
+    ActivityModel* activity,
+    ControlModel* control);
 void usage_apply_demo(UsageModel* usage);
 void alert_apply_demo(AlertModel* alert);
 void activity_apply_demo(ActivityModel* activity, int running_count);

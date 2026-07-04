@@ -13,7 +13,8 @@ PayloadKind parse_payload(
     const char* json,
     UsageModel* usage,
     AlertModel* alert,
-    ActivityModel* activity) {
+    ActivityModel* activity,
+    ControlModel* control) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
   if (err) {
@@ -57,6 +58,20 @@ PayloadKind parse_payload(
     if (activity->running_count < 0) activity->running_count = 0;
     activity->updated_at = doc["t"] | 0L;
     return PAYLOAD_ACTIVITY;
+  }
+
+  if (strcmp(kind, "control") == 0) {
+    const char* command = doc["cmd"] | "";
+    if (strcmp(command, "screen") == 0) {
+      control->valid = true;
+      control->screen_on = doc["on"] | true;
+      control->updated_at = doc["t"] | 0L;
+      copy_text(control->command, sizeof(control->command), command);
+      copy_text(control->reason, sizeof(control->reason), doc["why"] | "control");
+      return PAYLOAD_CONTROL;
+    }
+    device_logf("WARN", "Unknown control command: %s", command);
+    return PAYLOAD_NONE;
   }
 
   device_logf("WARN", "Unknown payload kind: %s", kind);

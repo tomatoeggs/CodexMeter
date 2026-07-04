@@ -72,6 +72,22 @@ def build_activity_payload(
     return Payload("activity", data)
 
 
+def build_screen_control_payload(
+    on: bool,
+    reason: str,
+    now: int | None = None,
+) -> Payload:
+    data = {
+        "v": 1,
+        "k": "control",
+        "cmd": "screen",
+        "on": bool(on),
+        "why": sanitize_device_text(reason, fallback="auto"),
+        "t": int(now if now is not None else time.time()),
+    }
+    return Payload("control", data)
+
+
 def build_alert_payload(
     body: str,
     title: str = "任务完成！",

@@ -12,7 +12,14 @@ from .ble import BleState, BleTransport
 from .events import EventServer
 from .payloads import Payload, build_activity_payload, build_usage_payload
 from .provider import CodexUsageProvider
-from .settings import APP_DIR, LOG_FILE, POLL_INTERVAL_SEC
+from .screen_policy import screen_policy_loop
+from .settings import (
+    APP_DIR,
+    AUTO_SCREEN_TIMEOUT_SEC,
+    LOCK_POLL_INTERVAL_SEC,
+    LOG_FILE,
+    POLL_INTERVAL_SEC,
+)
 
 
 async def quota_loop(
@@ -44,6 +51,18 @@ async def quota_loop(
 
 
 async def put_latest(queue: "asyncio.Queue[Payload]", payload: Payload) -> None:
+    if payload.kind == "control":
+        kept: list[Payload] = []
+        while True:
+            try:
+                existing = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if existing.kind != "control":
+                kept.append(existing)
+        for existing in kept:
+            await queue.put(existing)
+
     if queue.full():
         _ = queue.get_nowait()
     await queue.put(payload)
@@ -82,6 +101,16 @@ async def run_daemon(args: argparse.Namespace) -> None:
         asyncio.create_task(
             quota_loop(provider, queue, stop_event, args.poll_interval), name="quota"
         ),
+        asyncio.create_task(
+            screen_policy_loop(
+                sink,
+                ble_state,
+                stop_event,
+                timeout_sec=args.auto_screen_timeout,
+                poll_interval_sec=args.lock_poll_interval,
+            ),
+            name="screen_policy",
+        ),
         asyncio.create_task(transport.run(queue, ble_state, stop_event), name="ble"),
     ]
 
@@ -109,6 +138,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=15.0)
     parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL_SEC)
     parser.add_argument("--scan-timeout", type=float, default=8.0)
+    parser.add_argument("--auto-screen-timeout", type=float, default=AUTO_SCREEN_TIMEOUT_SEC)
+    parser.add_argument("--lock-poll-interval", type=float, default=LOCK_POLL_INTERVAL_SEC)
     parser.add_argument("--device-name", default="CodexMeter")
     parser.add_argument("--refresh-token", action="store_true")
     parser.add_argument("--log-level", default="INFO")

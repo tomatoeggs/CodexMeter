@@ -22,11 +22,16 @@ static lv_obj_t* activity_dots[12];
 static lv_obj_t* alert_layer;
 static lv_obj_t* alert_title;
 static lv_obj_t* alert_body;
+static lv_obj_t* brightness_layer;
+static lv_obj_t* brightness_bar;
+static lv_obj_t* brightness_pct;
 
 static bool alert_active = false;
 static uint32_t alert_started_ms = 0;
 static uint32_t flash_started_ms = 0;
 static int flash_step = -1;
+static bool brightness_active = false;
+static uint32_t brightness_started_ms = 0;
 
 static const lv_color_t BG = lv_color_hex(0x0f1115);
 static const lv_color_t PANEL = lv_color_hex(0x1b1f2a);
@@ -49,6 +54,8 @@ static const int ACTIVITY_MAX_DOTS = 12;
 static const int ACTIVITY_DOT_SIZE = 10;
 static const int ACTIVITY_DOT_GAP = 9;
 static const int ACTIVITY_DOT_Y = 452;
+static const int BRIGHTNESS_LAYER_W = 300;
+static const int BRIGHTNESS_LAYER_H = 104;
 
 static const lv_font_t* ui_font() {
   return &codexmeter_font_30;
@@ -195,6 +202,39 @@ static String pct_text(int value) {
   return String(value) + "%";
 }
 
+static void make_brightness_overlay() {
+  brightness_layer = lv_obj_create(screen);
+  lv_obj_remove_flag(brightness_layer, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(brightness_layer, BRIGHTNESS_LAYER_W, BRIGHTNESS_LAYER_H);
+  lv_obj_align(brightness_layer, LV_ALIGN_CENTER, 0, 24);
+  lv_obj_set_style_radius(brightness_layer, 8, 0);
+  lv_obj_set_style_pad_all(brightness_layer, 0, 0);
+  lv_obj_set_style_bg_color(brightness_layer, lv_color_hex(0x151923), 0);
+  lv_obj_set_style_bg_opa(brightness_layer, LV_OPA_90, 0);
+  lv_obj_set_style_border_width(brightness_layer, 1, 0);
+  lv_obj_set_style_border_color(brightness_layer, lv_color_hex(0x303747), 0);
+  lv_obj_set_style_shadow_width(brightness_layer, 18, 0);
+  lv_obj_set_style_shadow_color(brightness_layer, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_shadow_opa(brightness_layer, LV_OPA_40, 0);
+
+  brightness_pct = make_label(brightness_layer, "80%", &lv_font_montserrat_32, TEXT);
+  lv_obj_align(brightness_pct, LV_ALIGN_TOP_MID, 0, 12);
+
+  brightness_bar = lv_bar_create(brightness_layer);
+  lv_obj_set_size(brightness_bar, 238, 13);
+  lv_obj_align(brightness_bar, LV_ALIGN_BOTTOM_MID, 0, -24);
+  lv_bar_set_range(brightness_bar, 0, 100);
+  lv_bar_set_value(brightness_bar, 80, LV_ANIM_OFF);
+  lv_obj_set_style_radius(brightness_bar, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(brightness_bar, lv_color_hex(0x303747), 0);
+  lv_obj_set_style_bg_opa(brightness_bar, LV_OPA_COVER, 0);
+  lv_obj_set_style_radius(brightness_bar, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_color(brightness_bar, CODEX_BLUE, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_opa(brightness_bar, LV_OPA_COVER, LV_PART_INDICATOR);
+
+  lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
+}
+
 void ui_init() {
   screen = lv_screen_active();
   base_style(screen);
@@ -251,6 +291,8 @@ void ui_init() {
   lv_label_set_long_mode(alert_body, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(alert_body, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_pos(alert_body, ALERT_TEXT_X, ALERT_BODY_Y);
+
+  make_brightness_overlay();
 }
 
 void ui_update_usage(const UsageModel& usage) {
@@ -312,10 +354,28 @@ void ui_set_battery(int pct, bool charging) {
   }
 }
 
+void ui_show_brightness(int pct) {
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+
+  lv_label_set_text(brightness_pct, (String(pct) + "%").c_str());
+  lv_bar_set_value(brightness_bar, pct, LV_ANIM_ON);
+  lv_obj_clear_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_to_index(brightness_layer, -1);
+  brightness_active = true;
+  brightness_started_ms = millis();
+}
+
 void ui_tick() {
+  uint32_t now = millis();
+  if (brightness_active &&
+      now - brightness_started_ms >= CODEXMETER_BRIGHTNESS_OVERLAY_MS) {
+    brightness_active = false;
+    lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
+  }
+
   if (!alert_active) return;
 
-  uint32_t now = millis();
   if (flash_step >= 0 && now - flash_started_ms >= CODEXMETER_FLASH_STEP_MS) {
     flash_step++;
     flash_started_ms = now;

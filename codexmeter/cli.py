@@ -63,6 +63,14 @@ async def run_demo_activity(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") else 1
 
 
+async def run_screen(args: argparse.Namespace) -> int:
+    result = await send_event(
+        {"type": "screen", "on": args.on, "reason": args.reason}
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("ok") else 1
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CodexMeter helper CLI.")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -88,6 +96,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     activity = sub.add_parser("demo-activity", help="Queue a demo running-task count.")
     activity.add_argument("--count", type=int, default=1)
     activity.set_defaults(func=run_demo_activity)
+
+    screen_on = sub.add_parser("screen-on", help="Queue a screen-on control payload.")
+    screen_on.add_argument("--reason", default="manual")
+    screen_on.set_defaults(func=run_screen, on=True)
+
+    screen_off = sub.add_parser("screen-off", help="Queue a screen-off control payload.")
+    screen_off.add_argument("--reason", default="manual")
+    screen_off.set_defaults(func=run_screen, on=False)
 
     return parser.parse_args(argv)
 

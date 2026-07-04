@@ -16,13 +16,15 @@
 - `codexmeter.payloads`：负责 BLE JSON payload 生成、摘要清洗、设备字库字符过滤和 512 bytes 长度约束。
 - `codexmeter.ble`：负责发现、连接和写入 `CodexMeter` BLE 外设；macOS 上会优先尝试找回已连接的 CoreBluetooth 外设。
 - `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hooks 与 `codexmeterctl` 使用；同时维护运行中任务集合。
+- `codexmeter.screen_policy`：负责 macOS 锁屏状态轮询、自动亮屏/关屏状态机和 BLE 重连亮屏策略。
 - `hooks/codexmeter_start_hook.py`：负责接收 Codex `UserPromptSubmit` hook 输入，通知 daemon 有任务开始运行。
 - `hooks/codexmeter_stop_hook.py`：负责接收 Codex `Stop` hook 输入、生成短摘要并静默通知 daemon；异常时仍成功退出，不阻塞 Codex。
 - `scripts/install_hook.py`：负责合并 CodexMeter `Stop` hook 到 `~/.codex/hooks.json`，并在覆盖前备份旧文件。
 - `firmware/src/model.*`：负责解析 BLE JSON 为固件内部模型，并记录 `usage` payload 接收时的 `millis()`，用于后续倒计时计算。
 - `firmware/src/ui.*`：负责 LVGL 显示、余量卡片、电池图标、重置倒计时、红黄绿闪屏和任务完成视图。
 - `firmware/src/ble_service.*`：负责 GATT 服务、RX/TX、ACK/NACK 与刷新通知。
-- `firmware/src/power.*`：负责 AXP2101 电量和 PWR/按键事件。
+- `firmware/src/power.*`：负责 AXP2101 电量和中间 PKEY 事件。
+- `firmware/src/main.cpp`：负责板级初始化、主循环调度、串口调试命令、LVGL flush、AMOLED 亮屏/关屏和亮度控制。
 - `firmware/src/device_log.*`：负责 ESP32 端关键事件环形日志、实时串口打印和按需日志 dump。
 - `tools/capture_screenshot.py`：负责通过 USB 串口触发固件截图命令、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
 - `tools/read_device_logs.py`：负责通过 USB 串口查询、清空或跟随 ESP32 设备日志。
@@ -47,7 +49,30 @@
 12. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
 13. 固件 BLE RX 使用小队列缓存连续 payload；收到携带 `run` 的 `alert` 时，会在显示提醒前同步更新活动任务数。
 14. 固件收到 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
-15. 用户可按 BOOT/侧边按键提前关闭提醒。
+15. 用户可按中间按键切换 AMOLED 亮屏和关闭；提醒显示时关屏会同时关闭当前提醒。
+16. 用户可按左/右按键降低/增加亮度，固件显示 3 秒亮度进度条。
+
+## 屏幕电源控制链路
+
+1. 固件在 `main.cpp` 维护 `screen_on` 状态，启动后默认为亮屏。
+2. AXP2101 PKEY 短按进入按键处理逻辑，切换 `screen_on`。
+3. 关屏时调用 CO5300 驱动的 `displayOff()`，并让 LVGL flush 直接完成，不继续向屏幕写入像素。
+4. 亮屏时调用 `displayOn()`，随后 invalidate 当前活动屏幕并强制刷新一次，确保显示的是最新 UI。
+5. 串口调试支持 `screen_on`、`screen_off` 和 `screen_toggle`，设备日志会记录 `screen on` / `screen off`。
+6. daemon 通过 `ioreg -n Root -d1 -r` 轮询 macOS `IOConsoleLocked` 状态。锁屏持续 5 分钟后发送 `control/screen off`，解锁时发送 `control/screen on`。
+7. 固件本地监测 BLE 连接状态。BLE 断开持续 5 分钟后，即使 Mac 端没有机会发送控制消息，固件也会本地关屏。
+8. BLE 恢复连接时，固件不会自行亮屏；daemon 只有在 Mac 当前未锁屏时才发送 `control/screen on`，避免锁屏期间重连点亮屏幕。
+9. daemon 队列只保留最新一条 `control` payload；BLE 写入前还会跳过锁屏期间遗留的过期亮屏控制，避免状态反转。
+10. 屏幕关闭只影响面板显示；BLE、任务计数、用量刷新、截图和日志链路继续运行。
+
+## 亮度控制链路
+
+1. 左键 GPIO0 短按降低亮度，右键 GPIO18 短按增加亮度，中间 AXP2101 PKEY 不参与亮度调节。
+2. 固件维护逻辑亮度百分比，默认 80%，范围 10%-100%，每次调整 10%。
+3. 亮度百分比会映射到 CO5300 `setBrightness()` 的 0-255 硬件亮度值。
+4. 若屏幕处于关闭状态，按左/右键会先亮屏，再应用新的亮度，保证用户能看到反馈。
+5. 每次调整后，UI 顶层显示一个 3 秒亮度进度条和百分比；该浮层不进入 BLE 协议。
+6. 串口调试支持 `brightness_down`、`brightness_up` 和 `brightness <pct>`，设备日志会记录亮度百分比和触发来源。
 
 ## USB 截图链路
 
@@ -82,12 +107,15 @@
 - 第一张卡片：`5h 剩余:`、剩余百分比、`HH:MM 后重置`。
 - 第二张卡片：`7d 剩余:`、剩余百分比、`xd 后重置`。
 - 底部：运行中 Codex 任务数指示。1 个任务显示 1 个小蓝点，2 个任务显示 2 个小蓝点；没有运行中任务时不显示。
+- 按键：中间短按切换 AMOLED 亮屏和关闭；左/右短按调节亮度；关屏不影响后台数据更新。
+- 亮度浮层：调整亮度时显示百分比和进度条，3 秒后自动隐藏。
 
 提醒页：
 
 - 闪动阶段：只显示红、黄、绿全屏背景，不显示文字。
 - 内容阶段：固定区域显示标题和正文，避免动态摘要与标题重叠。
 - 标题使用 30px 中文字体，正文使用 28px 专用中文字库。
+- 提醒显示时关屏会同时关闭当前提醒。
 
 ## 协议
 
@@ -128,10 +156,16 @@ GATT UUID：
 {"v":1,"k":"activity","src":"codex","run":2,"t":1783070000}
 ```
 
+屏幕控制 payload：
+
+```json
+{"v":1,"k":"control","cmd":"screen","on":true,"why":"mac_unlocked","t":1783070000}
+```
+
 字段说明：
 
 - `v`：协议版本。
-- `k`：payload 类型，当前支持 `usage`、`alert` 和 `activity`。
+- `k`：payload 类型，当前支持 `usage`、`alert`、`activity` 和 `control`。
 - `src`：用量来源，首版为 `codex`。
 - `h5` / `d7`：剩余百分比，整数。
 - `h5r` / `d7r`：重置时间戳，单位为秒。
@@ -140,6 +174,7 @@ GATT UUID：
 - `id`：提醒事件 ID，默认由 daemon 生成短 UUID。
 - `title` / `body`：提醒标题和正文，发送前会做设备字库清洗和长度约束。
 - `run`：当前正在运行的 Codex 任务数量。
+- `cmd` / `on` / `why`：控制命令、屏幕目标状态和触发原因；当前 `control` 只支持 `cmd:"screen"`。
 
 ## 安装与运行
 
@@ -157,6 +192,8 @@ GATT UUID：
 - 固件 BLE RX 队列可缓存 6 个 payload，避免连续写入时后一个 payload 覆盖前一个。
 - 固件设备日志保留最近 48 条，每条消息最多 143 bytes；超过容量时覆盖最旧日志。
 - 固件 180 秒无新 usage 更新时进入 stale 状态。
+- Mac 锁屏和 BLE 断连的自动关屏阈值均为 5 分钟；Mac 锁屏轮询间隔默认为 5 秒。
+- 固件亮度范围为 10%-100%，默认 80%，步进 10%，亮度提示浮层停留 3 秒。
 - alert 闪动步长为 180 ms，共 6 步；文字出现后停留 8 秒。
 - ESP32 端不联网校时，重置倒计时依赖 daemon payload 的 `t` 字段和设备本地运行时钟。
 - 480x480 RGB565 全帧截图约 450 KiB，当前仅在带 PSRAM 的目标板启用；无 PSRAM 固件会返回 `SCREENSHOT_UNSUPPORTED`。

@@ -26,6 +26,7 @@ class BleState:
     last_usage: Payload | None = None
     last_activity: Payload | None = None
     last_payload: Payload | None = None
+    connect_control: Payload | None = None
 
 
 class BleTransport:
@@ -134,6 +135,9 @@ class BleTransport:
             with contextlib_suppress_bleak():
                 await client.start_notify(TX_CHAR_UUID, self._on_ack)
 
+            if state.connect_control is not None:
+                await self._write_payload(client, state.connect_control)
+                used_successfully = True
             if state.last_usage is not None:
                 await self._write_payload(client, state.last_usage)
                 used_successfully = True
@@ -163,6 +167,9 @@ class BleTransport:
                     continue
                 if payload_task in done:
                     payload = payload_task.result()
+                    if not self._should_write_payload(payload, state):
+                        log.info("Skipped stale BLE payload %s", payload.kind)
+                        continue
                     await self._write_payload(client, payload)
                     state.last_payload = payload
                     if payload.kind == "usage":
@@ -178,6 +185,15 @@ class BleTransport:
         data = payload.to_json_bytes()
         log.debug("BLE write %s: %s", payload.kind, data.decode("utf-8", errors="replace"))
         await client.write_gatt_char(RX_CHAR_UUID, data, response=True)
+
+    def _should_write_payload(self, payload: Payload, state: BleState) -> bool:
+        if payload.kind != "control":
+            return True
+        if payload.data.get("cmd") != "screen":
+            return True
+        if payload.data.get("on") is True and state.connect_control is None:
+            return False
+        return True
 
     def _on_ack(self, _char: Any, data: bytearray) -> None:
         text = bytes(data).decode("utf-8", errors="replace")
