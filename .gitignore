@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.platformio/
+.npm-cache/
+dist/
+build/
+*.egg-info/
+
+firmware/.pio/
+firmware/.vscode/
+
+*.log
+.DS_Store

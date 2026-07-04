@@ -1,0 +1,20 @@
+"""Shared settings and defaults."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+
+APP_DIR = Path.home() / ".codexmeter"
+EVENT_SOCKET = APP_DIR / "events.sock"
+LOG_FILE = APP_DIR / "codexmeter.log"
+
+DEVICE_NAME = "CodexMeter"
+SERVICE_UUID = "4c41555a-4465-7669-6365-000000000001"
+RX_CHAR_UUID = "4c41555a-4465-7669-6365-000000000002"
+TX_CHAR_UUID = "4c41555a-4465-7669-6365-000000000003"
+REQ_CHAR_UUID = "4c41555a-4465-7669-6365-000000000004"
+
+POLL_INTERVAL_SEC = 60
+STALE_AFTER_SEC = 180
+SCAN_TIMEOUT_SEC = 8.0

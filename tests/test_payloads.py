@@ -1,0 +1,48 @@
+import json
+
+from codexmeter.limits import UsageSnapshot
+from codexmeter.payloads import (
+    MAX_BLE_PAYLOAD_BYTES,
+    build_alert_payload,
+    build_usage_payload,
+    sanitize_device_text,
+)
+
+
+def test_usage_payload_shape_and_size():
+    payload = build_usage_payload(
+        UsageSnapshot(
+            source="codex",
+            h5_remaining_percent=72,
+            h5_resets_at=1783093200,
+            d7_remaining_percent=84,
+            d7_resets_at=1783545600,
+            status="ok",
+            generated_at=1783070000,
+        )
+    )
+    encoded = payload.to_json_bytes()
+    decoded = json.loads(encoded)
+    assert len(encoded) <= MAX_BLE_PAYLOAD_BYTES
+    assert decoded["k"] == "usage"
+    assert decoded["h5"] == 72
+    assert decoded["d7"] == 84
+
+
+def test_alert_payload_truncates_to_ble_limit():
+    payload = build_alert_payload("任务内容" * 200, now=1, event_id="abc")
+    encoded = payload.to_json_bytes()
+    decoded = json.loads(encoded)
+    assert len(encoded) <= MAX_BLE_PAYLOAD_BYTES
+    assert decoded["k"] == "alert"
+    assert decoded["body"].endswith("...")
+
+
+def test_alert_payload_sanitizes_unsupported_device_text():
+    payload = build_alert_payload("修复任务信息乱码🚀𠮷成功", now=1, event_id="abc")
+    decoded = json.loads(payload.to_json_bytes())
+    assert decoded["body"] == "修复任务信息乱码 成功"
+
+
+def test_sanitize_device_text_falls_back_when_empty():
+    assert sanitize_device_text("🚀𠮷") == "Codex 任务已完成"
