@@ -10,6 +10,8 @@ from typing import Any
 
 from .payloads import Payload
 from .settings import (
+    BLE_ACK_TIMEOUT_SEC,
+    BLE_WRITE_TIMEOUT_SEC,
     DEVICE_NAME,
     REQ_CHAR_UUID,
     RX_CHAR_UUID,
@@ -19,6 +21,41 @@ from .settings import (
 )
 
 log = logging.getLogger(__name__)
+
+
+class BleWriteTimeout(RuntimeError):
+    """Raised when CoreBluetooth accepts a connection but a GATT write stalls."""
+
+
+class BleAckTimeout(RuntimeError):
+    """Raised when the device does not confirm a payload after it is written."""
+
+
+class BleAckTracker:
+    def __init__(self) -> None:
+        self.count = 0
+        self.last_text = ""
+        self.event = asyncio.Event()
+
+    def notify(self, data: bytearray) -> str:
+        text = bytes(data).decode("utf-8", errors="replace")
+        self.last_text = text
+        self.count += 1
+        self.event.set()
+        return text
+
+    async def wait_for_next(self, previous_count: int, timeout_sec: float) -> str:
+        while self.count <= previous_count:
+            self.event.clear()
+            if self.count > previous_count:
+                break
+            try:
+                await asyncio.wait_for(self.event.wait(), timeout=timeout_sec)
+            except asyncio.TimeoutError as exc:
+                raise BleAckTimeout(
+                    f"BLE ACK timed out after {timeout_sec:.1f}s"
+                ) from exc
+        return self.last_text
 
 
 @dataclass
@@ -34,9 +71,13 @@ class BleTransport:
         self,
         device_name: str = DEVICE_NAME,
         scan_timeout_sec: float = SCAN_TIMEOUT_SEC,
+        write_timeout_sec: float = BLE_WRITE_TIMEOUT_SEC,
+        ack_timeout_sec: float = BLE_ACK_TIMEOUT_SEC,
     ) -> None:
         self.device_name = device_name
         self.scan_timeout_sec = scan_timeout_sec
+        self.write_timeout_sec = write_timeout_sec
+        self.ack_timeout_sec = ack_timeout_sec
 
     async def run(
         self,
@@ -49,7 +90,11 @@ class BleTransport:
             try:
                 target = await self._discover()
                 if target is None:
-                    log.info("BLE device %s not found; retrying in %.0fs", self.device_name, backoff)
+                    log.info(
+                        "BLE device %s not found; retrying in %.0fs",
+                        self.device_name,
+                        backoff,
+                    )
                     await _sleep_or_stop(stop_event, backoff)
                     backoff = min(backoff * 2, 60.0)
                     continue
@@ -58,6 +103,10 @@ class BleTransport:
                 backoff = 1.0 if used else min(backoff * 2, 60.0)
             except asyncio.CancelledError:
                 raise
+            except (BleWriteTimeout, BleAckTimeout) as exc:
+                log.warning("%s; reconnecting in %.0fs", exc, backoff)
+                await _sleep_or_stop(stop_event, backoff)
+                backoff = min(backoff * 2, 60.0)
             except Exception:
                 log.exception("BLE loop error")
                 await _sleep_or_stop(stop_event, backoff)
@@ -103,7 +152,11 @@ class BleTransport:
                     name = peripheral.name()
                     if service == SERVICE_UUID or name == self.device_name:
                         address = peripheral.identifier().UUIDString()
-                        log.info("Found connected BLE peripheral %s [%s]", name, address)
+                        log.info(
+                            "Found connected BLE peripheral %s [%s]",
+                            name,
+                            address,
+                        )
                         return BLEDevice(address, name, (peripheral, manager))
         except Exception:
             log.debug("macOS connected-peripheral lookup failed", exc_info=True)
@@ -132,17 +185,24 @@ class BleTransport:
             log.info("Connected to %s", display)
             with contextlib_suppress_bleak():
                 await client.start_notify(REQ_CHAR_UUID, on_refresh)
-            with contextlib_suppress_bleak():
-                await client.start_notify(TX_CHAR_UUID, self._on_ack)
+            ack_tracker: BleAckTracker | None = BleAckTracker()
+            try:
+                await client.start_notify(
+                    TX_CHAR_UUID,
+                    lambda char, data: self._on_ack(char, data, ack_tracker),
+                )
+            except (BleakError, ValueError) as exc:
+                log.debug("BLE ACK notifications unavailable: %s", exc)
+                ack_tracker = None
 
             if state.connect_control is not None:
-                await self._write_payload(client, state.connect_control)
+                await self._write_payload(client, state.connect_control, ack_tracker)
                 used_successfully = True
             if state.last_usage is not None:
-                await self._write_payload(client, state.last_usage)
+                await self._write_payload(client, state.last_usage, ack_tracker)
                 used_successfully = True
             if state.last_activity is not None:
-                await self._write_payload(client, state.last_activity)
+                await self._write_payload(client, state.last_activity, ack_tracker)
                 used_successfully = True
 
             while client.is_connected and not stop_event.is_set():
@@ -162,7 +222,7 @@ class BleTransport:
                 if refresh_task in done and refresh_requested.is_set():
                     refresh_requested.clear()
                     if state.last_usage is not None:
-                        await self._write_payload(client, state.last_usage)
+                        await self._write_payload(client, state.last_usage, ack_tracker)
                         used_successfully = True
                     continue
                 if payload_task in done:
@@ -170,7 +230,7 @@ class BleTransport:
                     if not self._should_write_payload(payload, state):
                         log.info("Skipped stale BLE payload %s", payload.kind)
                         continue
-                    await self._write_payload(client, payload)
+                    await self._write_payload(client, payload, ack_tracker)
                     state.last_payload = payload
                     if payload.kind == "usage":
                         state.last_usage = payload
@@ -181,10 +241,38 @@ class BleTransport:
         log.info("BLE disconnected from %s", display)
         return used_successfully
 
-    async def _write_payload(self, client: Any, payload: Payload) -> None:
+    async def _write_payload(
+        self,
+        client: Any,
+        payload: Payload,
+        ack_tracker: BleAckTracker | None = None,
+    ) -> None:
         data = payload.to_json_bytes()
-        log.debug("BLE write %s: %s", payload.kind, data.decode("utf-8", errors="replace"))
-        await client.write_gatt_char(RX_CHAR_UUID, data, response=True)
+        log.debug(
+            "BLE write %s: %s",
+            payload.kind,
+            data.decode("utf-8", errors="replace"),
+        )
+        previous_ack_count = ack_tracker.count if ack_tracker is not None else 0
+        try:
+            await asyncio.wait_for(
+                client.write_gatt_char(RX_CHAR_UUID, data, response=True),
+                timeout=self.write_timeout_sec,
+            )
+        except asyncio.TimeoutError as exc:
+            raise BleWriteTimeout(
+                f"BLE write {payload.kind} timed out after {self.write_timeout_sec:.1f}s"
+            ) from exc
+
+        if ack_tracker is None:
+            return
+
+        try:
+            await ack_tracker.wait_for_next(previous_ack_count, self.ack_timeout_sec)
+        except BleAckTimeout as exc:
+            raise BleAckTimeout(
+                f"BLE ACK for {payload.kind} timed out after {self.ack_timeout_sec:.1f}s"
+            ) from exc
 
     def _should_write_payload(self, payload: Payload, state: BleState) -> bool:
         if payload.kind != "control":
@@ -195,8 +283,16 @@ class BleTransport:
             return False
         return True
 
-    def _on_ack(self, _char: Any, data: bytearray) -> None:
-        text = bytes(data).decode("utf-8", errors="replace")
+    def _on_ack(
+        self,
+        _char: Any,
+        data: bytearray,
+        ack_tracker: BleAckTracker | None = None,
+    ) -> None:
+        if ack_tracker is not None:
+            text = ack_tracker.notify(data)
+        else:
+            text = bytes(data).decode("utf-8", errors="replace")
         log.debug("BLE ack: %s", text)
 
 

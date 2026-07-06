@@ -2,6 +2,15 @@
 
 ## 未发布
 
+暂无。
+
+## v0.5.1
+
+- 修复 macOS CoreBluetooth 连接假活时，daemon 持续排队但设备端用量变为 `stale` 的问题：BLE 写入或设备 ACK 超时后会主动断开并自动重连。
+- 新增 `codexmeterd --ble-write-timeout` 和 `--ble-ack-timeout` 参数，用于调整 BLE 自动恢复超时。
+
+## v0.5.0
+
 - 新增 QMI8658 IMU 屏幕方向自适应：支持 0/90/180/270 度自动旋转，并在方向切换时压暗重绘。
 - 新增 `imu`、`rotate auto`、`rotate 0/90/180/270` 串口调试命令，方便查看 IMU 读数和手动锁定方向。
 - USB 截图会按当前物理方向输出，便于自动旋转场景下做视觉 QA。

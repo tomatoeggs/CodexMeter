@@ -16,6 +16,8 @@ from .screen_policy import screen_policy_loop
 from .settings import (
     APP_DIR,
     AUTO_SCREEN_TIMEOUT_SEC,
+    BLE_ACK_TIMEOUT_SEC,
+    BLE_WRITE_TIMEOUT_SEC,
     LOCK_POLL_INTERVAL_SEC,
     LOG_FILE,
     POLL_INTERVAL_SEC,
@@ -93,7 +95,12 @@ async def run_daemon(args: argparse.Namespace) -> None:
     )
     ble_state = BleState()
     ble_state.last_activity = build_activity_payload(0)
-    transport = BleTransport(device_name=args.device_name, scan_timeout_sec=args.scan_timeout)
+    transport = BleTransport(
+        device_name=args.device_name,
+        scan_timeout_sec=args.scan_timeout,
+        write_timeout_sec=args.ble_write_timeout,
+        ack_timeout_sec=args.ble_ack_timeout,
+    )
     event_server = EventServer(sink)
 
     tasks = [
@@ -138,6 +145,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=15.0)
     parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL_SEC)
     parser.add_argument("--scan-timeout", type=float, default=8.0)
+    parser.add_argument("--ble-write-timeout", type=float, default=BLE_WRITE_TIMEOUT_SEC)
+    parser.add_argument("--ble-ack-timeout", type=float, default=BLE_ACK_TIMEOUT_SEC)
     parser.add_argument("--auto-screen-timeout", type=float, default=AUTO_SCREEN_TIMEOUT_SEC)
     parser.add_argument("--lock-poll-interval", type=float, default=LOCK_POLL_INTERVAL_SEC)
     parser.add_argument("--device-name", default="CodexMeter")

@@ -18,7 +18,7 @@ from typing import Any
 CLIENT_INFO = {
     "name": "codexmeter",
     "title": "CodexMeter",
-    "version": "0.1.0",
+    "version": "0.5.1",
 }
 
 
