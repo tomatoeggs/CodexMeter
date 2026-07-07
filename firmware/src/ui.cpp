@@ -5,6 +5,7 @@
 
 #include <esp_heap_caps.h>
 #include <lvgl.h>
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -72,18 +73,17 @@ static const int ACTIVITY_DOT_SIZE = 10;
 static const int ACTIVITY_DOT_GAP = 9;
 static const int ACTIVITY_DOT_Y = 452;
 static const uint32_t ACTIVITY_ANIM_INTERVAL_MS = 33;
-static const uint32_t ACTIVITY_COLOR_CYCLE_MS = 5600;
+static const uint32_t ACTIVITY_COLOR_CYCLE_MS = 7000;
 static const uint32_t ACTIVITY_BREATH_CYCLE_MS = 4000;
 static const uint32_t ACTIVITY_DOT_PHASE_MS = 180;
+static const uint16_t ACTIVITY_COLOR_START_HUE = 203;
+static const uint8_t ACTIVITY_COLOR_SATURATION = 91;
+static const uint8_t ACTIVITY_COLOR_VALUE = 100;
+static const float ACTIVITY_TWO_PI = 6.28318530718f;
 static const uint8_t ACTIVITY_OPA_MIN = 135;
 static const uint8_t ACTIVITY_OPA_MAX = 255;
 static const int BRIGHTNESS_LAYER_W = 300;
 static const int BRIGHTNESS_LAYER_H = 104;
-
-static const uint32_t ACTIVITY_RAINBOW[] = {
-    0x18a8ff, 0x6c5cff, 0xff4dd8, 0xff4d4f, 0xff9f1c,
-    0xffd43b, 0x2fda77, 0x00d2ff, 0x18a8ff,
-};
 
 struct DriftOffset {
   int8_t x;
@@ -304,36 +304,19 @@ static lv_obj_t* make_activity_dot(lv_obj_t* parent) {
   return dot;
 }
 
-static uint8_t mix_channel(uint8_t a, uint8_t b, uint16_t amount) {
-  return (uint8_t)((a * (255 - amount) + b * amount + 127) / 255);
-}
-
-static lv_color_t mix_hex_color(uint32_t from, uint32_t to, uint16_t amount) {
-  uint8_t fr = (from >> 16) & 0xff;
-  uint8_t fg = (from >> 8) & 0xff;
-  uint8_t fb = from & 0xff;
-  uint8_t tr = (to >> 16) & 0xff;
-  uint8_t tg = (to >> 8) & 0xff;
-  uint8_t tb = to & 0xff;
-  uint32_t mixed = ((uint32_t)mix_channel(fr, tr, amount) << 16) |
-                   ((uint32_t)mix_channel(fg, tg, amount) << 8) |
-                   mix_channel(fb, tb, amount);
-  return lv_color_hex(mixed);
+static float eased_cycle_phase(uint32_t cycle_ms, uint32_t cycle_duration_ms) {
+  if (cycle_duration_ms == 0) return 0.0f;
+  float phase = (float)cycle_ms / (float)cycle_duration_ms;
+  return phase - sinf(ACTIVITY_TWO_PI * phase) / ACTIVITY_TWO_PI;
 }
 
 static lv_color_t activity_color_at(uint32_t elapsed_ms) {
-  const size_t color_count =
-      sizeof(ACTIVITY_RAINBOW) / sizeof(ACTIVITY_RAINBOW[0]);
-  const size_t segment_count = color_count - 1;
   uint32_t cycle_ms = elapsed_ms % ACTIVITY_COLOR_CYCLE_MS;
-  uint32_t scaled = cycle_ms * segment_count;
-  size_t segment = scaled / ACTIVITY_COLOR_CYCLE_MS;
-  if (segment >= segment_count) segment = segment_count - 1;
-  uint16_t amount =
-      (uint16_t)(((scaled % ACTIVITY_COLOR_CYCLE_MS) * 255U) /
-                 ACTIVITY_COLOR_CYCLE_MS);
-  return mix_hex_color(
-      ACTIVITY_RAINBOW[segment], ACTIVITY_RAINBOW[segment + 1], amount);
+  float phase = eased_cycle_phase(cycle_ms, ACTIVITY_COLOR_CYCLE_MS);
+  uint16_t hue =
+      (ACTIVITY_COLOR_START_HUE + (uint16_t)(phase * 360.0f + 0.5f)) % 360;
+  return lv_color_hsv_to_rgb(
+      hue, ACTIVITY_COLOR_SATURATION, ACTIVITY_COLOR_VALUE);
 }
 
 static lv_opa_t activity_breath_opa_at(uint32_t elapsed_ms) {
@@ -356,12 +339,12 @@ static void tick_activity_dots(uint32_t now) {
 
   activity_anim_last_ms = now;
   uint32_t elapsed_ms = now - activity_anim_started_ms;
+  lv_color_t color = activity_color_at(elapsed_ms);
   for (int i = 0; i < activity_visible_count; i++) {
-    uint32_t dot_elapsed_ms = elapsed_ms + i * ACTIVITY_DOT_PHASE_MS;
-    lv_obj_set_style_bg_color(
-        activity_dots[i], activity_color_at(dot_elapsed_ms), 0);
+    uint32_t breath_elapsed_ms = elapsed_ms + i * ACTIVITY_DOT_PHASE_MS;
+    lv_obj_set_style_bg_color(activity_dots[i], color, 0);
     lv_obj_set_style_bg_opa(
-        activity_dots[i], activity_breath_opa_at(dot_elapsed_ms), 0);
+        activity_dots[i], activity_breath_opa_at(breath_elapsed_ms), 0);
   }
 }
 
@@ -538,15 +521,15 @@ void ui_update_activity(const ActivityModel& activity) {
           start_x + i * (ACTIVITY_DOT_SIZE + ACTIVITY_DOT_GAP),
           ACTIVITY_DOT_Y);
       if (restart_anim) {
-        lv_obj_set_style_bg_color(activity_dots[i], CODEX_BLUE, 0);
+        lv_obj_set_style_bg_color(activity_dots[i], activity_color_at(0), 0);
         lv_obj_set_style_bg_opa(activity_dots[i], LV_OPA_COVER, 0);
       } else if (i >= activity_visible_count) {
-        uint32_t dot_elapsed_ms =
-            now - activity_anim_started_ms + i * ACTIVITY_DOT_PHASE_MS;
+        uint32_t elapsed_ms = now - activity_anim_started_ms;
+        uint32_t breath_elapsed_ms = elapsed_ms + i * ACTIVITY_DOT_PHASE_MS;
         lv_obj_set_style_bg_color(
-            activity_dots[i], activity_color_at(dot_elapsed_ms), 0);
+            activity_dots[i], activity_color_at(elapsed_ms), 0);
         lv_obj_set_style_bg_opa(
-            activity_dots[i], activity_breath_opa_at(dot_elapsed_ms), 0);
+            activity_dots[i], activity_breath_opa_at(breath_elapsed_ms), 0);
       }
       lv_obj_clear_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
     } else {
