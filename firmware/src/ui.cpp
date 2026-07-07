@@ -12,6 +12,7 @@ LV_FONT_DECLARE(codexmeter_font_30);
 LV_FONT_DECLARE(codexmeter_percent_64);
 
 static lv_obj_t* screen;
+static lv_obj_t* main_layer;
 static lv_obj_t* top_logo;
 static lv_obj_t* top_title;
 static lv_obj_t* top_battery;
@@ -38,6 +39,8 @@ static uint32_t alert_reveal_started_ms = 0;
 static int flash_step = -1;
 static bool brightness_active = false;
 static uint32_t brightness_started_ms = 0;
+static uint32_t drift_last_ms = 0;
+static uint8_t drift_index = 0;
 
 static const lv_color_t BG = lv_color_hex(0x0f1115);
 static const lv_color_t PANEL = lv_color_hex(0x1b1f2a);
@@ -67,6 +70,16 @@ static const int ACTIVITY_DOT_GAP = 9;
 static const int ACTIVITY_DOT_Y = 452;
 static const int BRIGHTNESS_LAYER_W = 300;
 static const int BRIGHTNESS_LAYER_H = 104;
+
+struct DriftOffset {
+  int8_t x;
+  int8_t y;
+};
+
+static const DriftOffset DRIFT_OFFSETS[] = {
+    {0, 0},  {1, 0},   {-1, 1}, {2, -1}, {-2, 0}, {1, 2},
+    {0, -2}, {-1, -1}, {2, 1},  {-2, 2}, {1, -2}, {-2, -1},
+};
 
 static const lv_font_t* ui_font() {
   return &codexmeter_font_30;
@@ -150,7 +163,7 @@ static lv_obj_t* make_label(lv_obj_t* parent, const char* text, const lv_font_t*
 }
 
 static lv_obj_t* make_panel(int y) {
-  lv_obj_t* panel = lv_obj_create(screen);
+  lv_obj_t* panel = lv_obj_create(main_layer);
   lv_obj_set_size(panel, PANEL_W, PANEL_H);
   lv_obj_set_pos(panel, 20, y);
   lv_obj_set_style_radius(panel, 8, 0);
@@ -163,6 +176,42 @@ static lv_obj_t* make_panel(int y) {
 static void strip_obj(lv_obj_t* obj) {
   lv_obj_remove_style_all(obj);
   lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+}
+
+static int clamp_drift_offset(int value) {
+  if (value < -CODEXMETER_BURN_IN_DRIFT_MAX_PX) {
+    return -CODEXMETER_BURN_IN_DRIFT_MAX_PX;
+  }
+  if (value > CODEXMETER_BURN_IN_DRIFT_MAX_PX) {
+    return CODEXMETER_BURN_IN_DRIFT_MAX_PX;
+  }
+  return value;
+}
+
+static void apply_burn_in_drift(const DriftOffset& offset) {
+  if (!main_layer) return;
+  int x = clamp_drift_offset(offset.x);
+  int y = clamp_drift_offset(offset.y);
+  lv_obj_set_pos(main_layer, x, y);
+  device_logf("INFO", "burn_in_drift x=%d y=%d", x, y);
+}
+
+static void tick_burn_in_drift(uint32_t now) {
+#if CODEXMETER_BURN_IN_DRIFT_INTERVAL_MS > 0 && CODEXMETER_BURN_IN_DRIFT_MAX_PX > 0
+  if (!main_layer || alert_active) return;
+
+  if (drift_last_ms == 0) {
+    drift_last_ms = now;
+    return;
+  }
+  if (now - drift_last_ms < CODEXMETER_BURN_IN_DRIFT_INTERVAL_MS) return;
+
+  drift_last_ms = now;
+  drift_index = (drift_index + 1) % (sizeof(DRIFT_OFFSETS) / sizeof(DRIFT_OFFSETS[0]));
+  apply_burn_in_drift(DRIFT_OFFSETS[drift_index]);
+#else
+  (void)now;
+#endif
 }
 
 static lv_obj_t* make_panel_content(lv_obj_t* panel) {
@@ -315,15 +364,20 @@ void ui_init() {
   screen = lv_screen_active();
   base_style(screen);
 
-  top_logo = make_label(screen, "Codex", &lv_font_montserrat_32, CODEX_BLUE);
+  main_layer = lv_obj_create(screen);
+  strip_obj(main_layer);
+  lv_obj_set_size(main_layer, CODEXMETER_SCREEN_W, CODEXMETER_SCREEN_H);
+  lv_obj_set_pos(main_layer, 0, 0);
+
+  top_logo = make_label(main_layer, "Codex", &lv_font_montserrat_32, CODEX_BLUE);
   lv_obj_align(top_logo, LV_ALIGN_TOP_LEFT, 22, 16);
 
-  top_title = make_label(screen, "剩余用量", ui_font(), TEXT);
+  top_title = make_label(main_layer, "剩余用量", ui_font(), TEXT);
   lv_obj_align(top_title, LV_ALIGN_TOP_MID, 0, 17);
 
-  lv_obj_t* battery_icon = make_battery_icon(screen);
+  lv_obj_t* battery_icon = make_battery_icon(main_layer);
   lv_obj_align(battery_icon, LV_ALIGN_TOP_RIGHT, -18, 25);
-  top_battery = make_label(screen, "--%", &lv_font_montserrat_32, DIM);
+  top_battery = make_label(main_layer, "--%", &lv_font_montserrat_32, DIM);
   lv_obj_align(top_battery, LV_ALIGN_TOP_RIGHT, -58, 16);
 
   lv_obj_t* panel_h5 = make_panel(92);
@@ -347,7 +401,7 @@ void ui_init() {
   lv_obj_align(d7_reset, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 
   for (int i = 0; i < ACTIVITY_MAX_DOTS; i++) {
-    activity_dots[i] = make_activity_dot(screen);
+    activity_dots[i] = make_activity_dot(main_layer);
   }
 
   alert_layer = lv_obj_create(screen);
@@ -451,6 +505,8 @@ void ui_show_brightness(int pct) {
 
 void ui_tick() {
   uint32_t now = millis();
+  tick_burn_in_drift(now);
+
   if (brightness_active &&
       now - brightness_started_ms >= CODEXMETER_BRIGHTNESS_OVERLAY_MS) {
     brightness_active = false;
