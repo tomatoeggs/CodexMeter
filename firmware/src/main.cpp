@@ -2,6 +2,7 @@
 #include <Arduino_GFX_Library.h>
 #include <lvgl.h>
 #include <esp_heap_caps.h>
+#include <esp_system.h>
 
 #include "ble_service.h"
 #include "config.h"
@@ -34,6 +35,8 @@ struct GpioButtonState {
 
 static uint16_t* lv_buf_1 = nullptr;
 static uint16_t* lv_buf_2 = nullptr;
+static void* lvgl_psram_pool = nullptr;
+static lv_mem_pool_t lvgl_psram_mem_pool = nullptr;
 static UsageModel usage;
 static AlertModel alert;
 static ActivityModel activity;
@@ -47,6 +50,53 @@ static uint32_t rotation_ramp_last_ms = 0;
 
 static uint32_t lv_tick() {
   return millis();
+}
+
+static const char* reset_reason_label(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:
+      return "poweron";
+    case ESP_RST_EXT:
+      return "external";
+    case ESP_RST_SW:
+      return "software";
+    case ESP_RST_PANIC:
+      return "panic";
+    case ESP_RST_INT_WDT:
+      return "int_wdt";
+    case ESP_RST_TASK_WDT:
+      return "task_wdt";
+    case ESP_RST_WDT:
+      return "wdt";
+    case ESP_RST_DEEPSLEEP:
+      return "deepsleep";
+    case ESP_RST_BROWNOUT:
+      return "brownout";
+    case ESP_RST_SDIO:
+      return "sdio";
+    case ESP_RST_USB:
+      return "usb";
+    case ESP_RST_JTAG:
+      return "jtag";
+    case ESP_RST_EFUSE:
+      return "efuse";
+    case ESP_RST_PWR_GLITCH:
+      return "power_glitch";
+    case ESP_RST_CPU_LOCKUP:
+      return "cpu_lockup";
+    default:
+      return "unknown";
+  }
+}
+
+static void log_lvgl_mem(const char* phase) {
+  lv_mem_monitor_t mon;
+  lv_mem_monitor(&mon);
+  device_logf(
+      "INFO", "lv_mem %s t=%lu f=%lu b=%lu u=%u g=%u",
+      phase && phase[0] ? phase : "-", (unsigned long)mon.total_size,
+      (unsigned long)mon.free_size, (unsigned long)mon.free_biggest_size,
+      mon.used_pct, mon.frag_pct);
 }
 
 static void lv_flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
@@ -98,6 +148,29 @@ static void display_init() {
 
   lv_init();
   lv_tick_set_cb(lv_tick);
+
+#ifdef BOARD_HAS_PSRAM
+  lvgl_psram_pool = heap_caps_malloc(
+      CODEXMETER_LVGL_PSRAM_POOL_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (lvgl_psram_pool) {
+    lvgl_psram_mem_pool =
+        lv_mem_add_pool(lvgl_psram_pool, CODEXMETER_LVGL_PSRAM_POOL_BYTES);
+    if (lvgl_psram_mem_pool) {
+      device_logf(
+          "INFO", "LVGL PSRAM pool=%p bytes=%lu", lvgl_psram_pool,
+          (unsigned long)CODEXMETER_LVGL_PSRAM_POOL_BYTES);
+      log_lvgl_mem("pool_added");
+    } else {
+      device_logf(
+          "WARN", "LVGL PSRAM pool add failed ptr=%p bytes=%lu",
+          lvgl_psram_pool, (unsigned long)CODEXMETER_LVGL_PSRAM_POOL_BYTES);
+      heap_caps_free(lvgl_psram_pool);
+      lvgl_psram_pool = nullptr;
+    }
+  } else {
+    device_logf("WARN", "LVGL PSRAM pool alloc failed");
+  }
+#endif
 
   lv_buf_1 = (uint16_t*)heap_caps_malloc(
       CODEXMETER_SCREEN_W * BUF_LINES * sizeof(uint16_t), LV_BUF_CAPS);
@@ -347,6 +420,10 @@ static void handle_serial() {
         set_brightness_percent(atoi(buf + 11), "serial");
       } else if (strcmp(buf, "imu") == 0) {
         imu_print_status(Serial);
+      } else if (strcmp(buf, "heap") == 0) {
+        device_log_heap("serial");
+      } else if (strcmp(buf, "lvheap") == 0) {
+        log_lvgl_mem("serial");
       } else if (strcmp(buf, "rotate auto") == 0) {
         imu_set_auto_rotation(true);
       } else if (strncmp(buf, "rotate ", 7) == 0) {
@@ -442,6 +519,11 @@ void setup() {
   delay(300);
   Serial.println("{\"ready\":true,\"device\":\"CodexMeter\"}");
   device_logf("INFO", "device ready");
+  esp_reset_reason_t reset_reason = esp_reset_reason();
+  device_logf(
+      "INFO", "reset reason=%d %s", (int)reset_reason,
+      reset_reason_label(reset_reason));
+  device_log_heap("setup_start");
 
   pinMode(CODEXMETER_BUTTON_LEFT_PIN, INPUT_PULLUP);
   pinMode(CODEXMETER_BUTTON_RIGHT_PIN, INPUT_PULLUP);
@@ -452,13 +534,30 @@ void setup() {
   ui_set_battery(power_battery_percent(), power_is_charging());
   ble_service_init();
   ble_service_request_refresh();
+  device_log_heap("setup_done");
   device_logf("INFO", "setup complete");
 }
 
 void loop() {
   static uint32_t last_battery_ui_ms = 0;
+  static uint32_t lv_slow_count = 0;
+  static uint32_t last_lv_slow_log_ms = 0;
 
+  uint32_t lv_start_ms = millis();
   lv_timer_handler();
+  uint32_t lv_elapsed_ms = millis() - lv_start_ms;
+#if CODEXMETER_LVGL_SLOW_FRAME_MS > 0
+  if (lv_elapsed_ms >= CODEXMETER_LVGL_SLOW_FRAME_MS) {
+    lv_slow_count++;
+    uint32_t now = millis();
+    if (now - last_lv_slow_log_ms >= 250) {
+      last_lv_slow_log_ms = now;
+      device_logf(
+          "WARN", "lv_timer slow ms=%lu count=%lu",
+          (unsigned long)lv_elapsed_ms, (unsigned long)lv_slow_count);
+    }
+  }
+#endif
   ui_tick();
   power_tick();
   ble_service_tick();

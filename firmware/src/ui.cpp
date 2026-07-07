@@ -1,12 +1,14 @@
 #include "ui.h"
 
 #include "config.h"
+#include "device_log.h"
 
+#include <esp_heap_caps.h>
 #include <lvgl.h>
+#include <string.h>
 #include <time.h>
 
 LV_FONT_DECLARE(codexmeter_font_30);
-LV_FONT_DECLARE(codexmeter_alert_28);
 LV_FONT_DECLARE(codexmeter_percent_64);
 
 static lv_obj_t* screen;
@@ -25,10 +27,14 @@ static lv_obj_t* alert_body;
 static lv_obj_t* brightness_layer;
 static lv_obj_t* brightness_bar;
 static lv_obj_t* brightness_pct;
+static lv_font_t* alert_title_ttf;
+static lv_font_t* alert_body_ttf;
 
 static bool alert_active = false;
+static bool alert_reveal_pending = false;
 static uint32_t alert_started_ms = 0;
 static uint32_t flash_started_ms = 0;
+static uint32_t alert_reveal_started_ms = 0;
 static int flash_step = -1;
 static bool brightness_active = false;
 static uint32_t brightness_started_ms = 0;
@@ -48,6 +54,11 @@ static const int PANEL_CONTENT_W = PANEL_W - 64;
 static const int PANEL_CONTENT_H = 108;
 static const int ALERT_TEXT_W = CODEXMETER_SCREEN_W - 64;
 static const int ALERT_TEXT_X = 32;
+// TinyTTF centers by advance width; this font's visible CJK bounds sit slightly right.
+static const int ALERT_TITLE_X =
+    ALERT_TEXT_X + CODEXMETER_ALERT_TITLE_VISUAL_OFFSET_X;
+static const int ALERT_BODY_X =
+    ALERT_TEXT_X + CODEXMETER_ALERT_BODY_VISUAL_OFFSET_X;
 static const int ALERT_TITLE_Y = 126;
 static const int ALERT_BODY_Y = 190;
 static const int ACTIVITY_MAX_DOTS = 12;
@@ -66,7 +77,60 @@ static const lv_font_t* percent_font() {
 }
 
 static const lv_font_t* body_font() {
-  return &codexmeter_alert_28;
+  if (alert_body_ttf) return alert_body_ttf;
+  return ui_font();
+}
+
+static const lv_font_t* alert_title_font() {
+  if (alert_title_ttf) return alert_title_ttf;
+  return ui_font();
+}
+
+static size_t text_len(const char* text) {
+  return text ? strlen(text) : 0;
+}
+
+static void log_lvgl_mem(const char* phase) {
+  lv_mem_monitor_t mon;
+  lv_mem_monitor(&mon);
+  device_logf(
+      "INFO", "lv_mem %s t=%lu f=%lu b=%lu u=%u g=%u",
+      phase && phase[0] ? phase : "-", (unsigned long)mon.total_size,
+      (unsigned long)mon.free_size, (unsigned long)mon.free_biggest_size,
+      mon.used_pct, mon.frag_pct);
+}
+
+static void log_alert_diagnostics(const char* phase) {
+#if CODEXMETER_ALERT_DIAGNOSTICS
+  device_log_heap(phase);
+  log_lvgl_mem(phase);
+#else
+  (void)phase;
+#endif
+}
+
+static void init_dynamic_fonts() {
+#if LV_USE_TINY_TTF
+  alert_title_ttf = lv_tiny_ttf_create_file_ex(
+      CODEXMETER_TTF_FONT_PATH, CODEXMETER_TTF_TITLE_SIZE, LV_FONT_KERNING_NONE,
+      CODEXMETER_TTF_CACHE_GLYPHS);
+  alert_body_ttf = lv_tiny_ttf_create_file_ex(
+      CODEXMETER_TTF_FONT_PATH, CODEXMETER_TTF_ALERT_SIZE, LV_FONT_KERNING_NONE,
+      CODEXMETER_TTF_CACHE_GLYPHS);
+  if (alert_title_ttf) alert_title_ttf->fallback = ui_font();
+  if (alert_body_ttf) alert_body_ttf->fallback = ui_font();
+  if (alert_title_ttf && alert_body_ttf) {
+    device_logf("INFO", "TinyTTF font ready %s", CODEXMETER_TTF_FONT_PATH);
+    device_log_heap("ttf_ready");
+    log_lvgl_mem("ttf_ready");
+  } else {
+    device_logf("WARN", "TinyTTF font unavailable %s", CODEXMETER_TTF_FONT_PATH);
+    device_log_heap("ttf_unavailable");
+    log_lvgl_mem("ttf_unavailable");
+  }
+#else
+  device_logf("WARN", "TinyTTF disabled");
+#endif
 }
 
 static void base_style(lv_obj_t* obj) {
@@ -111,10 +175,20 @@ static lv_obj_t* make_panel_content(lv_obj_t* panel) {
 
 static void layout_alert_text() {
   lv_obj_set_width(alert_title, ALERT_TEXT_W);
-  lv_obj_set_pos(alert_title, ALERT_TEXT_X, ALERT_TITLE_Y);
+  lv_obj_set_pos(alert_title, ALERT_TITLE_X, ALERT_TITLE_Y);
 
   lv_obj_set_width(alert_body, ALERT_TEXT_W);
-  lv_obj_set_pos(alert_body, ALERT_TEXT_X, ALERT_BODY_Y);
+  lv_obj_set_pos(alert_body, ALERT_BODY_X, ALERT_BODY_Y);
+}
+
+static void reveal_alert_text(uint32_t now) {
+  alert_reveal_pending = false;
+  alert_started_ms = now;
+  lv_obj_clear_flag(alert_title, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(alert_body, LV_OBJ_FLAG_HIDDEN);
+  layout_alert_text();
+  device_logf("INFO", "alert reveal");
+  log_alert_diagnostics("alert_reveal");
 }
 
 static lv_obj_t* make_battery_icon(lv_obj_t* parent) {
@@ -236,6 +310,8 @@ static void make_brightness_overlay() {
 }
 
 void ui_init() {
+  init_dynamic_fonts();
+
   screen = lv_screen_active();
   base_style(screen);
 
@@ -281,16 +357,16 @@ void ui_init() {
   lv_obj_set_style_border_width(alert_layer, 0, 0);
   lv_obj_add_flag(alert_layer, LV_OBJ_FLAG_HIDDEN);
 
-  alert_title = make_label(alert_layer, "任务完成！", ui_font(), TEXT);
+  alert_title = make_label(alert_layer, "任务完成！", alert_title_font(), TEXT);
   lv_obj_set_width(alert_title, ALERT_TEXT_W);
   lv_label_set_long_mode(alert_title, LV_LABEL_LONG_CLIP);
   lv_obj_set_style_text_align(alert_title, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(alert_title, ALERT_TEXT_X, ALERT_TITLE_Y);
+  lv_obj_set_pos(alert_title, ALERT_TITLE_X, ALERT_TITLE_Y);
   alert_body = make_label(alert_layer, "", body_font(), TEXT);
   lv_obj_set_width(alert_body, ALERT_TEXT_W);
   lv_label_set_long_mode(alert_body, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(alert_body, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(alert_body, ALERT_TEXT_X, ALERT_BODY_Y);
+  lv_obj_set_pos(alert_body, ALERT_BODY_X, ALERT_BODY_Y);
 
   make_brightness_overlay();
 }
@@ -326,13 +402,20 @@ void ui_update_activity(const ActivityModel& activity) {
 }
 
 void ui_show_alert(const AlertModel& alert) {
+  device_logf(
+      "INFO", "alert show title_b=%u body_b=%u",
+      (unsigned int)text_len(alert.title), (unsigned int)text_len(alert.body));
+  log_alert_diagnostics("alert_before");
   alert_active = true;
+  alert_reveal_pending = false;
   alert_started_ms = millis();
   flash_started_ms = millis();
+  alert_reveal_started_ms = 0;
   flash_step = 0;
   lv_obj_clear_flag(alert_layer, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(alert_title, alert.title);
   lv_label_set_text(alert_body, alert.body);
+  log_alert_diagnostics("alert_text");
   layout_alert_text();
   lv_obj_add_flag(alert_title, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(alert_body, LV_OBJ_FLAG_HIDDEN);
@@ -376,16 +459,20 @@ void ui_tick() {
 
   if (!alert_active) return;
 
+  if (alert_reveal_pending &&
+      now - alert_reveal_started_ms >= CODEXMETER_ALERT_REVEAL_DELAY_MS) {
+    reveal_alert_text(now);
+  }
+
   if (flash_step >= 0 && now - flash_started_ms >= CODEXMETER_FLASH_STEP_MS) {
     flash_step++;
     flash_started_ms = now;
     if (flash_step >= CODEXMETER_FLASH_STEPS) {
       flash_step = -1;
-      alert_started_ms = now;
+      alert_reveal_pending = true;
+      alert_reveal_started_ms = now;
       lv_obj_set_style_bg_color(alert_layer, BG, 0);
-      lv_obj_clear_flag(alert_title, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_clear_flag(alert_body, LV_OBJ_FLAG_HIDDEN);
-      layout_alert_text();
+      lv_obj_invalidate(alert_layer);
     } else {
       switch (flash_step % 3) {
         case 0:
@@ -401,13 +488,16 @@ void ui_tick() {
     }
   }
 
-  if (now - alert_started_ms >= CODEXMETER_ALERT_HOLD_MS) {
+  if (!alert_reveal_pending && now - alert_started_ms >= CODEXMETER_ALERT_HOLD_MS) {
     ui_dismiss_alert();
   }
 }
 
 void ui_dismiss_alert() {
+  device_logf("INFO", "alert dismiss");
+  log_alert_diagnostics("alert_dismiss");
   alert_active = false;
+  alert_reveal_pending = false;
   flash_step = -1;
   lv_obj_add_flag(alert_layer, LV_OBJ_FLAG_HIDDEN);
 }

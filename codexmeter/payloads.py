@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -14,23 +15,6 @@ from .limits import UsageSnapshot
 
 MAX_BLE_PAYLOAD_BYTES = 512
 MAX_ALERT_BODY_BYTES = 210
-DEVICE_TEXT_CHARS = (
-    "剩余用量重置任务完成测试提醒等待已一个月日摘要内容构建运行编译烧录失败成功结束"
-    "项目修复检查通过更新刷新连接断开错误正常通知乱码信息详情调整固件显示"
-    "界面功能生效请看查看文件目录代码函数模块配置脚本依赖安装服务后台蓝牙设备屏幕"
-    "字体样式布局页面组件按钮日志单元异常优化新增删除重启启动停止读取写入解析发送"
-    "接收队列事件状态结果验证问题原因方案实现继续准备可以无法需要注意默认支持保持"
-    "返回订阅限额百分比电量电池时间日期北京时间小时分钟秒红黄绿颜色闪动全屏动画"
-    "提示当前本地在线离线收到恢复告警标题正文窗口面板顶部底部左侧右侧居中对齐间距"
-    "边距宽度高度大小蓝色绿色黄色红色白色黑色灰色靠左靠右百分数没有部分整体后先"
-    "第一行第二行中文去掉增加放到只存在偏小方框重叠不漂亮很多细节换成图标根据进行"
-    "填充上下过大总结修改保存生成计划调试定位处理好发现检测部署应用守护进程未找到"
-    "扫描配对断线重连账户窗口空值主要次要源码参考架构职责未来适配模型软件简洁优雅"
-    "单一职责让我们一起硬件软件的了一是在和有为到与把对中后前上下面里这里那里这个"
-    "那个这些那些目前现在刚才会将能不能未被从按等或及如果因为所以但是并且然后直接"
-    "关于使用选择确认我你他她它们Codex，。！？：；、“”‘’（）【】《》…·"
-)
-_DEVICE_ALLOWED_CHARS = set(map(chr, range(0x20, 0x7F))) | set(DEVICE_TEXT_CHARS)
 
 
 @dataclass(frozen=True)
@@ -137,11 +121,17 @@ def clean_summary(text: str) -> str:
 
 
 def sanitize_device_text(text: str, fallback: str = "Codex 任务已完成") -> str:
-    """Keep text within the glyph set flashed to the ESP32 display."""
+    """Remove control characters while preserving Unicode text for TinyTTF."""
 
-    cleaned = "".join(ch if ch in _DEVICE_ALLOWED_CHARS else " " for ch in text)
+    cleaned = "".join(ch if is_display_text_char(ch) else " " for ch in text)
     compact = re.sub(r"\s+", " ", cleaned).strip()
     return compact or fallback
+
+
+def is_display_text_char(ch: str) -> bool:
+    if ch in "\t\n\r":
+        return False
+    return unicodedata.category(ch)[0] != "C"
 
 
 def truncate_utf8(text: str, max_bytes: int) -> str:

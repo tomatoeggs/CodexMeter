@@ -1,5 +1,6 @@
 #include "device_log.h"
 
+#include <esp_heap_caps.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -63,6 +64,23 @@ void device_logf(const char* level, const char* fmt, ...) {
   Serial.printf(
       "LOG %lu %lu %s %s\n", (unsigned long)seq, (unsigned long)ms, level_copy,
       message_copy);
+}
+
+void device_log_heap(const char* phase) {
+  if (!phase || !phase[0]) phase = "-";
+
+  uint32_t internal =
+      heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  uint32_t internal_largest =
+      heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  uint32_t psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  uint32_t psram_largest =
+      heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+
+  device_logf(
+      "INFO", "heap %s i=%lu il=%lu p=%lu pl=%lu", phase,
+      (unsigned long)internal, (unsigned long)internal_largest,
+      (unsigned long)psram, (unsigned long)psram_largest);
 }
 
 void device_log_dump(Stream& out, size_t limit) {

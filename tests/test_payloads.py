@@ -54,10 +54,10 @@ def test_alert_payload_truncates_to_ble_limit():
     assert decoded["body"].endswith("...")
 
 
-def test_alert_payload_sanitizes_unsupported_device_text():
+def test_alert_payload_preserves_unicode_text_for_tiny_ttf():
     payload = build_alert_payload("修复任务信息乱码🚀𠮷成功", now=1, event_id="abc")
     decoded = json.loads(payload.to_json_bytes())
-    assert decoded["body"] == "修复任务信息乱码 成功"
+    assert decoded["body"] == "修复任务信息乱码🚀𠮷成功"
 
 
 def test_alert_payload_can_carry_running_count():
@@ -84,4 +84,4 @@ def test_screen_control_payload_shape_and_size():
 
 
 def test_sanitize_device_text_falls_back_when_empty():
-    assert sanitize_device_text("🚀𠮷") == "Codex 任务已完成"
+    assert sanitize_device_text("\n\t\r") == "Codex 任务已完成"

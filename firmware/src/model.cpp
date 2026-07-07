@@ -99,7 +99,7 @@ void alert_apply_demo(AlertModel* alert) {
   alert->running_count = 0;
   copy_text(alert->id, sizeof(alert->id), "demo");
   copy_text(alert->title, sizeof(alert->title), "任务完成！");
-  copy_text(alert->body, sizeof(alert->body), "Codex 已完成一个测试任务");
+  copy_text(alert->body, sizeof(alert->body), "TinyTTF 中文渲染测试：修复乱码，龘齉");
   alert->received_at = now;
 }
 
