@@ -404,14 +404,16 @@ static void make_brightness_overlay() {
   lv_obj_set_style_shadow_color(brightness_layer, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_opa(brightness_layer, LV_OPA_40, 0);
 
-  brightness_pct = make_label(brightness_layer, "80%", &lv_font_montserrat_32, TEXT);
+  brightness_pct = make_label(brightness_layer, "", &lv_font_montserrat_32, TEXT);
+  lv_label_set_text(
+      brightness_pct, (String(CODEXMETER_BRIGHTNESS_DEFAULT) + "%").c_str());
   lv_obj_align(brightness_pct, LV_ALIGN_TOP_MID, 0, 12);
 
   brightness_bar = lv_bar_create(brightness_layer);
   lv_obj_set_size(brightness_bar, 238, 13);
   lv_obj_align(brightness_bar, LV_ALIGN_BOTTOM_MID, 0, -24);
   lv_bar_set_range(brightness_bar, 0, 100);
-  lv_bar_set_value(brightness_bar, 80, LV_ANIM_OFF);
+  lv_bar_set_value(brightness_bar, CODEXMETER_BRIGHTNESS_DEFAULT, LV_ANIM_OFF);
   lv_obj_set_style_radius(brightness_bar, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_color(brightness_bar, lv_color_hex(0x303747), 0);
   lv_obj_set_style_bg_opa(brightness_bar, LV_OPA_COVER, 0);
