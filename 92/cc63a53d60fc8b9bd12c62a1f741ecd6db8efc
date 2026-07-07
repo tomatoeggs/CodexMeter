@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_6c02113ca26d83::t_13e6a805e1c60a 5
+README.md
+  s_6c02113ca26d83::t_b705096ccad808 14,129
+docs/architecture.md
+  s_6c02113ca26d83::t_216fa6b0a94b98 25,71-78,135
+firmware/include/config.h
+  s_6c02113ca26d83::t_a54562c90812ea 51-53
+firmware/src/ui.cpp
+  s_6c02113ca26d83::t_53d5d48cab7266 15,42-43,74-83,166,181-216,367-372,375,378,380,404,508-509
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "92cc63a53d60fc8b9bd12c62a1f741ecd6db8efc",
+  "prompts": {},
+  "sessions": {
+    "s_6c02113ca26d83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3d3a-c8d5-7f93-bbc4-fcc48979056a",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
