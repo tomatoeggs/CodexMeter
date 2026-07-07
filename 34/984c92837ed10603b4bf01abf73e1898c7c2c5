@@ -1,0 +1,37 @@
+firmware/data/fonts/README.md
+  s_aa3a43edfb4877::t_b1fd5909ef5314 1-9
+firmware/include/config.h
+  s_aa3a43edfb4877::t_ec507c0d7c9351 34-43
+firmware/partitions_16mb_tinyttf.csv
+  s_aa3a43edfb4877::t_408e71e4ca6769 1-8
+firmware/platformio.ini
+  s_aa3a43edfb4877::t_ac9f3bc468dfed 6-9,26-32
+firmware/src/device_log.cpp
+  s_aa3a43edfb4877::t_3f7aa3c39bbeac 3,69-85
+firmware/src/device_log.h
+  s_aa3a43edfb4877::t_c2341c6c4edf05 6
+firmware/src/main.cpp
+  s_aa3a43edfb4877::t_25d2175dbfb35b 5,38-39,55-101,152-174,423-426,522-526,537,543-544,546,548-560
+firmware/src/model.cpp
+  s_aa3a43edfb4877::t_ced9090f517b2f 102
+tests/test_payloads.py
+  s_aa3a43edfb4877::t_5e0bf637c5ee98 57,60,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "34984c92837ed10603b4bf01abf73e1898c7c2c5",
+  "prompts": {},
+  "sessions": {
+    "s_aa3a43edfb4877": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f38b6-de05-7003-8344-63d7ef6d8b32",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
