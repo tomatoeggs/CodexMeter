@@ -1,0 +1,21 @@
+firmware/src/ui.cpp
+  s_071604f0c433d5::t_e207b4b160fa16 8,76,79-82,307-310,315-319,342,344-345,347,524,527-528,530,532
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "8913c67cc339ce36e33c9c644752867b8eb7f941",
+  "prompts": {},
+  "sessions": {
+    "s_071604f0c433d5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3d7f-3021-7632-9a66-bc3489b0ac1d",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
