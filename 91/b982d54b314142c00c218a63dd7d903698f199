@@ -1,0 +1,25 @@
+docs/architecture.md
+  s_6c02113ca26d83::t_b3d62ee72124fe 94,221
+firmware/include/config.h
+  s_6c02113ca26d83::t_e8865c8a432241 45
+firmware/src/ui.cpp
+  s_6c02113ca26d83::t_d00609878e80cf 407-409,416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "91b982d54b314142c00c218a63dd7d903698f199",
+  "prompts": {},
+  "sessions": {
+    "s_6c02113ca26d83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3d3a-c8d5-7f93-bbc4-fcc48979056a",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
