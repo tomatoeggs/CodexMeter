@@ -41,6 +41,9 @@ static bool brightness_active = false;
 static uint32_t brightness_started_ms = 0;
 static uint32_t drift_last_ms = 0;
 static uint8_t drift_index = 0;
+static int activity_visible_count = 0;
+static uint32_t activity_anim_started_ms = 0;
+static uint32_t activity_anim_last_ms = 0;
 
 static const lv_color_t BG = lv_color_hex(0x0f1115);
 static const lv_color_t PANEL = lv_color_hex(0x1b1f2a);
@@ -68,8 +71,19 @@ static const int ACTIVITY_MAX_DOTS = 12;
 static const int ACTIVITY_DOT_SIZE = 10;
 static const int ACTIVITY_DOT_GAP = 9;
 static const int ACTIVITY_DOT_Y = 452;
+static const uint32_t ACTIVITY_ANIM_INTERVAL_MS = 33;
+static const uint32_t ACTIVITY_COLOR_CYCLE_MS = 5600;
+static const uint32_t ACTIVITY_BREATH_CYCLE_MS = 2800;
+static const uint32_t ACTIVITY_DOT_PHASE_MS = 180;
+static const uint8_t ACTIVITY_OPA_MIN = 135;
+static const uint8_t ACTIVITY_OPA_MAX = 255;
 static const int BRIGHTNESS_LAYER_W = 300;
 static const int BRIGHTNESS_LAYER_H = 104;
+
+static const uint32_t ACTIVITY_RAINBOW[] = {
+    0x18a8ff, 0x6c5cff, 0xff4dd8, 0xff4d4f, 0xff9f1c,
+    0xffd43b, 0x2fda77, 0x00d2ff, 0x18a8ff,
+};
 
 struct DriftOffset {
   int8_t x;
@@ -147,7 +161,10 @@ static void init_dynamic_fonts() {
 }
 
 static void base_style(lv_obj_t* obj) {
+  lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_style_bg_color(obj, BG, 0);
+  lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
   lv_obj_set_style_text_color(obj, TEXT, 0);
   lv_obj_set_style_border_width(obj, 0, 0);
 }
@@ -176,6 +193,7 @@ static lv_obj_t* make_panel(int y) {
 static void strip_obj(lv_obj_t* obj) {
   lv_obj_remove_style_all(obj);
   lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
 }
 
 static int clamp_drift_offset(int value) {
@@ -193,6 +211,8 @@ static void apply_burn_in_drift(const DriftOffset& offset) {
   int x = clamp_drift_offset(offset.x);
   int y = clamp_drift_offset(offset.y);
   lv_obj_set_pos(main_layer, x, y);
+  lv_obj_invalidate(screen);
+  lv_refr_now(nullptr);
   device_logf("INFO", "burn_in_drift x=%d y=%d", x, y);
 }
 
@@ -284,6 +304,67 @@ static lv_obj_t* make_activity_dot(lv_obj_t* parent) {
   return dot;
 }
 
+static uint8_t mix_channel(uint8_t a, uint8_t b, uint16_t amount) {
+  return (uint8_t)((a * (255 - amount) + b * amount + 127) / 255);
+}
+
+static lv_color_t mix_hex_color(uint32_t from, uint32_t to, uint16_t amount) {
+  uint8_t fr = (from >> 16) & 0xff;
+  uint8_t fg = (from >> 8) & 0xff;
+  uint8_t fb = from & 0xff;
+  uint8_t tr = (to >> 16) & 0xff;
+  uint8_t tg = (to >> 8) & 0xff;
+  uint8_t tb = to & 0xff;
+  uint32_t mixed = ((uint32_t)mix_channel(fr, tr, amount) << 16) |
+                   ((uint32_t)mix_channel(fg, tg, amount) << 8) |
+                   mix_channel(fb, tb, amount);
+  return lv_color_hex(mixed);
+}
+
+static lv_color_t activity_color_at(uint32_t elapsed_ms) {
+  const size_t color_count =
+      sizeof(ACTIVITY_RAINBOW) / sizeof(ACTIVITY_RAINBOW[0]);
+  const size_t segment_count = color_count - 1;
+  uint32_t cycle_ms = elapsed_ms % ACTIVITY_COLOR_CYCLE_MS;
+  uint32_t scaled = cycle_ms * segment_count;
+  size_t segment = scaled / ACTIVITY_COLOR_CYCLE_MS;
+  if (segment >= segment_count) segment = segment_count - 1;
+  uint16_t amount =
+      (uint16_t)(((scaled % ACTIVITY_COLOR_CYCLE_MS) * 255U) /
+                 ACTIVITY_COLOR_CYCLE_MS);
+  return mix_hex_color(
+      ACTIVITY_RAINBOW[segment], ACTIVITY_RAINBOW[segment + 1], amount);
+}
+
+static lv_opa_t activity_breath_opa_at(uint32_t elapsed_ms) {
+  uint32_t half_cycle = ACTIVITY_BREATH_CYCLE_MS / 2;
+  uint32_t phase =
+      (elapsed_ms + half_cycle) % ACTIVITY_BREATH_CYCLE_MS;
+  uint32_t wave =
+      phase < half_cycle ? phase : ACTIVITY_BREATH_CYCLE_MS - phase;
+  uint32_t amount = (wave * 255U) / half_cycle;
+  return (lv_opa_t)(ACTIVITY_OPA_MIN +
+                    ((ACTIVITY_OPA_MAX - ACTIVITY_OPA_MIN) * amount) / 255U);
+}
+
+static void tick_activity_dots(uint32_t now) {
+  if (activity_visible_count <= 0) return;
+  if (activity_anim_last_ms != 0 &&
+      now - activity_anim_last_ms < ACTIVITY_ANIM_INTERVAL_MS) {
+    return;
+  }
+
+  activity_anim_last_ms = now;
+  uint32_t elapsed_ms = now - activity_anim_started_ms;
+  for (int i = 0; i < activity_visible_count; i++) {
+    uint32_t dot_elapsed_ms = elapsed_ms + i * ACTIVITY_DOT_PHASE_MS;
+    lv_obj_set_style_bg_color(
+        activity_dots[i], activity_color_at(dot_elapsed_ms), 0);
+    lv_obj_set_style_bg_opa(
+        activity_dots[i], activity_breath_opa_at(dot_elapsed_ms), 0);
+  }
+}
+
 static lv_color_t battery_fill_color(int pct) {
   if (pct <= 20) return BATTERY_RED;
   if (pct <= 50) return BATTERY_YELLOW;
@@ -368,6 +449,8 @@ void ui_init() {
   strip_obj(main_layer);
   lv_obj_set_size(main_layer, CODEXMETER_SCREEN_W, CODEXMETER_SCREEN_H);
   lv_obj_set_pos(main_layer, 0, 0);
+  lv_obj_set_style_bg_color(main_layer, BG, 0);
+  lv_obj_set_style_bg_opa(main_layer, LV_OPA_COVER, 0);
 
   top_logo = make_label(main_layer, "Codex", &lv_font_montserrat_32, CODEX_BLUE);
   lv_obj_align(top_logo, LV_ALIGN_TOP_LEFT, 22, 16);
@@ -436,6 +519,12 @@ void ui_update_activity(const ActivityModel& activity) {
   int count = activity.running_count;
   if (count < 0) count = 0;
   if (count > ACTIVITY_MAX_DOTS) count = ACTIVITY_MAX_DOTS;
+  bool restart_anim = activity_visible_count == 0 && count > 0;
+  uint32_t now = millis();
+  if (restart_anim) {
+    activity_anim_started_ms = now;
+    activity_anim_last_ms = 0;
+  }
 
   int total_w = count > 0
                     ? count * ACTIVITY_DOT_SIZE + (count - 1) * ACTIVITY_DOT_GAP
@@ -448,10 +537,27 @@ void ui_update_activity(const ActivityModel& activity) {
           activity_dots[i],
           start_x + i * (ACTIVITY_DOT_SIZE + ACTIVITY_DOT_GAP),
           ACTIVITY_DOT_Y);
+      if (restart_anim) {
+        lv_obj_set_style_bg_color(activity_dots[i], CODEX_BLUE, 0);
+        lv_obj_set_style_bg_opa(activity_dots[i], LV_OPA_COVER, 0);
+      } else if (i >= activity_visible_count) {
+        uint32_t dot_elapsed_ms =
+            now - activity_anim_started_ms + i * ACTIVITY_DOT_PHASE_MS;
+        lv_obj_set_style_bg_color(
+            activity_dots[i], activity_color_at(dot_elapsed_ms), 0);
+        lv_obj_set_style_bg_opa(
+            activity_dots[i], activity_breath_opa_at(dot_elapsed_ms), 0);
+      }
       lv_obj_clear_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_add_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
     }
+  }
+
+  activity_visible_count = count;
+  if (count == 0) {
+    activity_anim_started_ms = 0;
+    activity_anim_last_ms = 0;
   }
 }
 
@@ -506,6 +612,7 @@ void ui_show_brightness(int pct) {
 void ui_tick() {
   uint32_t now = millis();
   tick_burn_in_drift(now);
+  tick_activity_dots(now);
 
   if (brightness_active &&
       now - brightness_started_ms >= CODEXMETER_BRIGHTNESS_OVERLAY_MS) {
