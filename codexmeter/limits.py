@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 
 WINDOW_5H_MINS = 300
 WINDOW_7D_MINS = 7 * 24 * 60
+USAGE_RECOVERY_CONFIRMATIONS = 2
+USAGE_REMAINING_JUMP_THRESHOLD = 25
+USAGE_RESET_GRACE_SEC = 60
+USAGE_SAME_RESET_TOLERANCE_SEC = 120
+USAGE_5H_RESET_JUMP_SEC = 60 * 60
+USAGE_7D_RESET_JUMP_SEC = 24 * 60 * 60
+USAGE_INITIAL_EMPTY_D7_WINDOW_SEC = 6 * 24 * 60 * 60
 
 BEIJING_TZ = dt.timezone(dt.timedelta(hours=8), "CST")
 
@@ -32,6 +39,88 @@ class UsageSnapshot:
     d7_resets_at: int | None
     status: str
     generated_at: int
+
+
+@dataclass(frozen=True)
+class UsageSnapshotDecision:
+    snapshot: UsageSnapshot
+    accepted: bool
+    reason: str
+
+
+class UsageSnapshotStabilizer:
+    """Filter transient App Server quota snapshots before they reach BLE."""
+
+    def __init__(
+        self,
+        trusted: UsageSnapshot | None = None,
+        confirmations: int = USAGE_RECOVERY_CONFIRMATIONS,
+    ) -> None:
+        self.confirmations = max(1, confirmations)
+        self.trusted = trusted
+        self.pending: UsageSnapshot | None = None
+        self.pending_count = 0
+
+    def stabilize(self, snapshot: UsageSnapshot) -> UsageSnapshotDecision:
+        if self.trusted is None:
+            self._accept(snapshot)
+            return UsageSnapshotDecision(snapshot, accepted=True, reason="initial")
+
+        reason = self._transient_reason(self.trusted, snapshot)
+        if reason is None:
+            self._accept(snapshot)
+            return UsageSnapshotDecision(snapshot, accepted=True, reason="accepted")
+
+        if self.pending is not None and _same_snapshot_values(self.pending, snapshot):
+            self.pending_count += 1
+        else:
+            self.pending = snapshot
+            self.pending_count = 1
+
+        if _can_confirm_transient(reason) and self.pending_count >= self.confirmations:
+            self._accept(snapshot)
+            return UsageSnapshotDecision(
+                snapshot,
+                accepted=True,
+                reason=f"confirmed:{reason}",
+            )
+
+        assert self.trusted is not None
+        trusted = replace(self.trusted, generated_at=snapshot.generated_at)
+        return UsageSnapshotDecision(trusted, accepted=False, reason=reason)
+
+    def _accept(self, snapshot: UsageSnapshot) -> None:
+        self.trusted = snapshot
+        self.pending = None
+        self.pending_count = 0
+
+    def _transient_reason(
+        self,
+        trusted: UsageSnapshot,
+        snapshot: UsageSnapshot,
+    ) -> str | None:
+        if trusted.status != "ok" or snapshot.status != "ok":
+            return None
+
+        h5_reason = _window_transient_reason(
+            "h5",
+            trusted.h5_remaining_percent,
+            trusted.h5_resets_at,
+            snapshot.h5_remaining_percent,
+            snapshot.h5_resets_at,
+            snapshot.generated_at,
+            USAGE_5H_RESET_JUMP_SEC,
+        )
+        d7_reason = _window_transient_reason(
+            "d7",
+            trusted.d7_remaining_percent,
+            trusted.d7_resets_at,
+            snapshot.d7_remaining_percent,
+            snapshot.d7_resets_at,
+            snapshot.generated_at,
+            USAGE_7D_RESET_JUMP_SEC,
+        )
+        return d7_reason or h5_reason
 
 
 def clamp_percent(value: float | None) -> float | None:
@@ -160,6 +249,68 @@ def _round_percent(value: float | None) -> int | None:
     if value is None:
         return None
     return int(round(clamp_percent(value) or 0))
+
+
+def is_suspicious_initial_snapshot(snapshot: UsageSnapshot) -> bool:
+    if snapshot.status != "ok":
+        return False
+    if snapshot.h5_remaining_percent is None or snapshot.d7_remaining_percent is None:
+        return False
+    if snapshot.h5_remaining_percent >= 100 or snapshot.d7_remaining_percent != 100:
+        return False
+    if snapshot.d7_resets_at is None:
+        return False
+    return (
+        snapshot.d7_resets_at - snapshot.generated_at
+        >= USAGE_INITIAL_EMPTY_D7_WINDOW_SEC
+    )
+
+
+def _same_snapshot_values(left: UsageSnapshot, right: UsageSnapshot) -> bool:
+    return (
+        left.h5_remaining_percent == right.h5_remaining_percent
+        and left.h5_resets_at == right.h5_resets_at
+        and left.d7_remaining_percent == right.d7_remaining_percent
+        and left.d7_resets_at == right.d7_resets_at
+        and left.status == right.status
+    )
+
+
+def _can_confirm_transient(reason: str) -> bool:
+    return reason.endswith("_remaining_recovery")
+
+
+def _window_transient_reason(
+    name: str,
+    trusted_remaining: int | None,
+    trusted_reset: int | None,
+    current_remaining: int | None,
+    current_reset: int | None,
+    now: int,
+    reset_jump_threshold_sec: int,
+) -> str | None:
+    if (
+        trusted_remaining is None
+        or trusted_reset is None
+        or current_remaining is None
+        or current_reset is None
+    ):
+        return None
+    if now >= trusted_reset - USAGE_RESET_GRACE_SEC:
+        return None
+
+    remaining_jump = current_remaining - trusted_remaining
+    if remaining_jump < USAGE_REMAINING_JUMP_THRESHOLD:
+        return None
+
+    reset_jump = current_reset - trusted_reset
+    if reset_jump >= reset_jump_threshold_sec:
+        return f"{name}_early_reset_jump"
+
+    if abs(reset_jump) <= USAGE_SAME_RESET_TOLERANCE_SEC:
+        return f"{name}_remaining_recovery"
+
+    return None
 
 
 def format_beijing_time(epoch_seconds: int | None, with_date: bool) -> str:

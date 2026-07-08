@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import signal
 import sys
 import time
+from pathlib import Path
 
 from .ble import BleState, BleTransport
 from .events import EventServer
+from .limits import (
+    UsageSnapshot,
+    UsageSnapshotDecision,
+    UsageSnapshotStabilizer,
+    is_suspicious_initial_snapshot,
+)
 from .payloads import Payload, build_activity_payload, build_usage_payload
 from .provider import CodexUsageProvider
 from .screen_policy import screen_policy_loop
@@ -27,6 +35,7 @@ from .settings import (
 )
 
 COALESCED_PAYLOAD_KINDS = {"usage", "activity", "control"}
+USAGE_CACHE_FILE = APP_DIR / "last_usage_snapshot.json"
 
 
 async def quota_loop(
@@ -35,19 +44,41 @@ async def quota_loop(
     stop_event: asyncio.Event,
     poll_interval: int,
 ) -> None:
-    last_usage_payload: Payload | None = None
+    cached_snapshot = load_cached_usage_snapshot()
+    if cached_snapshot is not None:
+        logging.info(
+            "Loaded cached usage h5=%s d7=%s h5r=%s d7r=%s status=%s",
+            cached_snapshot.h5_remaining_percent,
+            cached_snapshot.d7_remaining_percent,
+            cached_snapshot.h5_resets_at,
+            cached_snapshot.d7_resets_at,
+            cached_snapshot.status,
+        )
+    last_usage_payload = (
+        build_usage_payload(cached_snapshot) if cached_snapshot is not None else None
+    )
+    stabilizer = UsageSnapshotStabilizer(trusted=cached_snapshot)
     while not stop_event.is_set():
         try:
-            snapshot = await provider.fetch()
-            payload = build_usage_payload(snapshot)
-            last_usage_payload = payload
-            await put_latest(queue, payload)
-            logging.info(
-                "Queued usage h5=%s d7=%s status=%s",
-                snapshot.h5_remaining_percent,
-                snapshot.d7_remaining_percent,
-                snapshot.status,
-            )
+            raw_snapshot = await provider.fetch()
+            if stabilizer.trusted is None and is_suspicious_initial_snapshot(raw_snapshot):
+                logging.warning(
+                    "Rejected suspicious initial usage sample raw_h5=%s raw_d7=%s "
+                    "raw_h5r=%s raw_d7r=%s",
+                    raw_snapshot.h5_remaining_percent,
+                    raw_snapshot.d7_remaining_percent,
+                    raw_snapshot.h5_resets_at,
+                    raw_snapshot.d7_resets_at,
+                )
+            else:
+                decision = stabilizer.stabilize(raw_snapshot)
+                snapshot = decision.snapshot
+                payload = build_usage_payload(snapshot)
+                last_usage_payload = payload
+                await put_latest(queue, payload)
+                log_usage_decision(raw_snapshot, decision)
+                if decision.accepted:
+                    save_cached_usage_snapshot(snapshot)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -61,6 +92,107 @@ async def quota_loop(
             await asyncio.wait_for(stop_event.wait(), timeout=poll_interval)
         except asyncio.TimeoutError:
             pass
+
+
+def log_usage_decision(
+    raw_snapshot: UsageSnapshot,
+    decision: UsageSnapshotDecision,
+) -> None:
+    snapshot = decision.snapshot
+    if decision.accepted:
+        logging.info(
+            "Queued usage h5=%s d7=%s h5r=%s d7r=%s status=%s decision=%s",
+            snapshot.h5_remaining_percent,
+            snapshot.d7_remaining_percent,
+            snapshot.h5_resets_at,
+            snapshot.d7_resets_at,
+            snapshot.status,
+            decision.reason,
+        )
+        return
+
+    logging.warning(
+        "Rejected transient usage sample reason=%s raw_h5=%s raw_d7=%s "
+        "raw_h5r=%s raw_d7r=%s queued_h5=%s queued_d7=%s queued_h5r=%s queued_d7r=%s",
+        decision.reason,
+        raw_snapshot.h5_remaining_percent,
+        raw_snapshot.d7_remaining_percent,
+        raw_snapshot.h5_resets_at,
+        raw_snapshot.d7_resets_at,
+        snapshot.h5_remaining_percent,
+        snapshot.d7_remaining_percent,
+        snapshot.h5_resets_at,
+        snapshot.d7_resets_at,
+    )
+
+
+def load_cached_usage_snapshot(
+    path: object = USAGE_CACHE_FILE,
+) -> UsageSnapshot | None:
+    path_obj = Path(path)
+    try:
+        with path_obj.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    snapshot = usage_snapshot_from_cache(data)
+    if snapshot is not None and is_suspicious_initial_snapshot(snapshot):
+        logging.warning("Ignoring suspicious cached usage snapshot")
+        return None
+    return snapshot
+
+
+def save_cached_usage_snapshot(
+    snapshot: UsageSnapshot,
+    path: object = USAGE_CACHE_FILE,
+) -> None:
+    path_obj = Path(path)
+    try:
+        path_obj.parent.mkdir(parents=True, exist_ok=True)
+        with path_obj.open("w", encoding="utf-8") as handle:
+            json.dump(usage_snapshot_to_cache(snapshot), handle, separators=(",", ":"))
+    except OSError:
+        logging.exception("Failed to save usage cache")
+
+
+def usage_snapshot_to_cache(snapshot: UsageSnapshot) -> dict[str, object]:
+    return {
+        "source": snapshot.source,
+        "h5_remaining_percent": snapshot.h5_remaining_percent,
+        "h5_resets_at": snapshot.h5_resets_at,
+        "d7_remaining_percent": snapshot.d7_remaining_percent,
+        "d7_resets_at": snapshot.d7_resets_at,
+        "status": snapshot.status,
+        "generated_at": snapshot.generated_at,
+    }
+
+
+def usage_snapshot_from_cache(data: dict[str, object]) -> UsageSnapshot | None:
+    source = data.get("source")
+    status = data.get("status")
+    generated_at = _cache_int(data.get("generated_at"))
+    if not isinstance(source, str) or not isinstance(status, str) or generated_at is None:
+        return None
+
+    return UsageSnapshot(
+        source=source,
+        h5_remaining_percent=_cache_int(data.get("h5_remaining_percent")),
+        h5_resets_at=_cache_int(data.get("h5_resets_at")),
+        d7_remaining_percent=_cache_int(data.get("d7_remaining_percent")),
+        d7_resets_at=_cache_int(data.get("d7_resets_at")),
+        status=status,
+        generated_at=generated_at,
+    )
+
+
+def _cache_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
 
 
 def build_stale_usage_payload(payload: Payload, now: int | None = None) -> Payload:

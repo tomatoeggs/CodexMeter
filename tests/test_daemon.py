@@ -1,6 +1,12 @@
 import asyncio
 
-from codexmeter.daemon import build_stale_usage_payload, put_latest
+from codexmeter.daemon import (
+    build_stale_usage_payload,
+    load_cached_usage_snapshot,
+    put_latest,
+    save_cached_usage_snapshot,
+)
+from codexmeter.limits import UsageSnapshot
 from codexmeter.payloads import Payload, build_screen_control_payload
 
 
@@ -63,3 +69,38 @@ def test_build_stale_usage_payload_preserves_values_and_updates_status():
     assert stale.data["st"] == "stale"
     assert stale.data["t"] == 42
     assert payload.data["st"] == "ok"
+
+
+def test_usage_cache_round_trips_snapshot(tmp_path):
+    path = tmp_path / "usage.json"
+    snapshot = UsageSnapshot(
+        source="codex",
+        h5_remaining_percent=89,
+        h5_resets_at=1783499130,
+        d7_remaining_percent=36,
+        d7_resets_at=1783526386,
+        status="ok",
+        generated_at=1783483642,
+    )
+
+    save_cached_usage_snapshot(snapshot, path)
+    loaded = load_cached_usage_snapshot(path)
+
+    assert loaded == snapshot
+
+
+def test_usage_cache_ignores_suspicious_empty_d7_snapshot(tmp_path):
+    path = tmp_path / "usage.json"
+    snapshot = UsageSnapshot(
+        source="codex",
+        h5_remaining_percent=97,
+        h5_resets_at=1783499154,
+        d7_remaining_percent=100,
+        d7_resets_at=1784085954,
+        status="ok",
+        generated_at=1783483796,
+    )
+
+    save_cached_usage_snapshot(snapshot, path)
+
+    assert load_cached_usage_snapshot(path) is None

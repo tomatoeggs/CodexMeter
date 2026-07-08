@@ -6,6 +6,7 @@
 - 强化 macOS 端 BLE 健康检查：TX ACK notify 订阅失败时不再降级为“写入成功”，并增加 45 秒应用层 heartbeat，避免 CoreBluetooth 假活导致设备端持续 `stale`。
 - Codex 用量读取失败时，会用上一次成功数据发送 `stale` heartbeat，保持 BLE 链路探活并明确区分数据源异常和蓝牙异常。
 - `codexmeterctl status` 会返回 BLE 健康字段，包括连接状态、队列深度、最近写入/ACK 时间和连续失败次数。
+- 增加 Codex 用量快照稳定器：过滤 App Server 偶发返回的 7d 空窗口，避免屏幕短暂显示 `100%` 和 `7d 后重置`。
 
 ## v0.5.1
 
