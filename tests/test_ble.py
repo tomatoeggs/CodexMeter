@@ -1,6 +1,7 @@
 import asyncio
 
 from codexmeter.ble import (
+    BleAckError,
     BleAckTimeout,
     BleAckTracker,
     BleNotifyError,
@@ -47,6 +48,14 @@ def test_ble_allows_screen_off_when_connect_wake_is_disabled():
     payload = build_screen_control_payload(False, "mac_locked", now=1)
 
     assert transport._should_write_payload(payload, state) is True
+
+
+def test_ble_connected_lookup_requires_expected_device_name():
+    transport = BleTransport(device_name="CodexMeter")
+
+    assert transport._connected_name_matches("CodexMeter") is True
+    assert transport._connected_name_matches("Clawdmeter") is False
+    assert transport._connected_name_matches(None) is False
 
 
 def test_ble_write_payload_times_out_when_gatt_write_stalls():
@@ -121,6 +130,57 @@ def test_ble_write_payload_accepts_device_ack():
 
         ack_task = asyncio.create_task(notify_ack())
         await transport._write_payload(client, payload, tracker)
+        await ack_task
+
+    asyncio.run(run())
+
+
+def test_ble_write_payload_rejects_device_nack_without_clearing_failure_state():
+    async def run() -> None:
+        transport = BleTransport(write_timeout_sec=0.1, ack_timeout_sec=0.1)
+        client = FakeWriteClient()
+        tracker = BleAckTracker()
+        state = BleState(consecutive_failures=2, last_error="previous")
+        payload = build_activity_payload(1, now=1)
+
+        async def notify_nack() -> None:
+            await asyncio.sleep(0)
+            tracker.notify(bytearray(b'{"err":true}'))
+
+        ack_task = asyncio.create_task(notify_nack())
+        try:
+            await transport._write_payload(client, payload, tracker, state)
+        except BleAckError as exc:
+            assert "NACK" in str(exc)
+        else:
+            raise AssertionError("expected BLE NACK error")
+        await ack_task
+        assert state.last_payload is None
+        assert state.last_ack_at is None
+        assert state.consecutive_failures == 2
+        assert state.last_error == "previous"
+
+    asyncio.run(run())
+
+
+def test_ble_write_payload_rejects_invalid_ack_json():
+    async def run() -> None:
+        transport = BleTransport(write_timeout_sec=0.1, ack_timeout_sec=0.1)
+        client = FakeWriteClient()
+        tracker = BleAckTracker()
+        payload = build_activity_payload(1, now=1)
+
+        async def notify_invalid_ack() -> None:
+            await asyncio.sleep(0)
+            tracker.notify(bytearray(b"not-json"))
+
+        ack_task = asyncio.create_task(notify_invalid_ack())
+        try:
+            await transport._write_payload(client, payload, tracker)
+        except BleAckError as exc:
+            assert "invalid" in str(exc)
+        else:
+            raise AssertionError("expected BLE ACK parse error")
         await ack_task
 
     asyncio.run(run())

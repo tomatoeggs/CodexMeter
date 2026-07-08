@@ -28,4 +28,7 @@ if [[ -z "$PORT" ]]; then
   exit 1
 fi
 
+echo "Uploading LittleFS data partition to $PORT..."
+"$PIO_BIN" run -d "$ROOT/firmware" -e "$ENV_NAME" -t uploadfs --upload-port "$PORT"
+echo "Uploading firmware to $PORT..."
 "$PIO_BIN" run -d "$ROOT/firmware" -e "$ENV_NAME" -t upload --upload-port "$PORT"

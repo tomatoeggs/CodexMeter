@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sys
 from dataclasses import dataclass
@@ -31,6 +32,10 @@ class BleWriteTimeout(RuntimeError):
 
 class BleAckTimeout(RuntimeError):
     """Raised when the device does not confirm a payload after it is written."""
+
+
+class BleAckError(RuntimeError):
+    """Raised when the device reports that a payload was not accepted."""
 
 
 class BleNotifyError(RuntimeError):
@@ -140,7 +145,7 @@ class BleTransport:
                 backoff = 1.0 if used else min(backoff * 2, 60.0)
             except asyncio.CancelledError:
                 raise
-            except (BleWriteTimeout, BleAckTimeout, BleNotifyError) as exc:
+            except (BleWriteTimeout, BleAckTimeout, BleAckError, BleNotifyError) as exc:
                 state.connected = False
                 state.consecutive_failures += 1
                 state.last_error = str(exc)
@@ -193,17 +198,26 @@ class BleTransport:
                 )
                 for peripheral in peripherals or []:
                     name = peripheral.name()
-                    if service == SERVICE_UUID or name == self.device_name:
-                        address = peripheral.identifier().UUIDString()
-                        log.info(
-                            "Found connected BLE peripheral %s [%s]",
-                            name,
-                            address,
+                    if not self._connected_name_matches(name):
+                        log.debug(
+                            "Skipping connected BLE peripheral %s for service %s",
+                            name or "<unnamed>",
+                            service,
                         )
-                        return BLEDevice(address, name, (peripheral, manager))
+                        continue
+                    address = peripheral.identifier().UUIDString()
+                    log.info(
+                        "Found connected BLE peripheral %s [%s]",
+                        name,
+                        address,
+                    )
+                    return BLEDevice(address, str(name), (peripheral, manager))
         except Exception:
             log.debug("macOS connected-peripheral lookup failed", exc_info=True)
         return None
+
+    def _connected_name_matches(self, name: Any) -> bool:
+        return name is not None and str(name) == self.device_name
 
     async def _connect_and_write(
         self,
@@ -340,11 +354,14 @@ class BleTransport:
             raise BleNotifyError("BLE ACK tracker is unavailable")
 
         try:
-            await ack_tracker.wait_for_next(previous_ack_count, self.ack_timeout_sec)
+            ack_text = await ack_tracker.wait_for_next(
+                previous_ack_count, self.ack_timeout_sec
+            )
         except BleAckTimeout as exc:
             raise BleAckTimeout(
                 f"BLE ACK for {payload.kind} timed out after {self.ack_timeout_sec:.1f}s"
             ) from exc
+        self._require_ack(payload, ack_text)
         if state is not None:
             self._remember_payload(payload, state)
             state.last_ack_at = loop.time()
@@ -369,6 +386,15 @@ class BleTransport:
             state.last_usage = payload
         elif payload.kind == "activity":
             state.last_activity = payload
+
+    @staticmethod
+    def _require_ack(payload: Payload, text: str) -> None:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise BleAckError(f"BLE ACK for {payload.kind} was invalid: {text!r}") from exc
+        if not isinstance(data, dict) or data.get("ack") is not True:
+            raise BleAckError(f"BLE NACK for {payload.kind}: {text}")
 
     def _should_write_payload(self, payload: Payload, state: BleState) -> bool:
         if payload.kind != "control":
