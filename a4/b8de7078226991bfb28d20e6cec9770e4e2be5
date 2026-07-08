@@ -1,0 +1,21 @@
+flash-mac.sh
+  s_76af9e67e79f35::t_64bd9570689404 31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "a4b8de7078226991bfb28d20e6cec9770e4e2be5",
+  "prompts": {},
+  "sessions": {
+    "s_76af9e67e79f35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3ffb-fca8-7c12-9bad-fd14837cd28b",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
