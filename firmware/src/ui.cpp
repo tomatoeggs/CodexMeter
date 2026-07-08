@@ -45,6 +45,7 @@ static uint8_t drift_index = 0;
 static int activity_visible_count = 0;
 static uint32_t activity_anim_started_ms = 0;
 static uint32_t activity_anim_last_ms = 0;
+static uint32_t activity_dot_started_ms[12];
 
 static const lv_color_t BG = lv_color_hex(0x0f1115);
 static const lv_color_t PANEL = lv_color_hex(0x1b1f2a);
@@ -74,6 +75,8 @@ static const int ACTIVITY_DOT_GAP = 9;
 static const int ACTIVITY_DOT_Y = 452;
 static const uint32_t ACTIVITY_ANIM_INTERVAL_MS = 33;
 static const uint32_t ACTIVITY_COLOR_CYCLE_MS = 7000;
+static const uint32_t ACTIVITY_COLOR_DOT_PHASE_MS = 420;
+static const uint32_t ACTIVITY_COLOR_SPREAD_IN_MS = 2200;
 static const uint32_t ACTIVITY_BREATH_CYCLE_MS = 4000;
 static const uint32_t ACTIVITY_DOT_PHASE_MS = 180;
 static const uint16_t ACTIVITY_COLOR_START_HUE = 203;
@@ -310,6 +313,20 @@ static float eased_cycle_phase(uint32_t cycle_ms, uint32_t cycle_duration_ms) {
   return phase - sinf(ACTIVITY_TWO_PI * phase) / ACTIVITY_TWO_PI;
 }
 
+static float smoothstep01(float phase) {
+  if (phase <= 0.0f) return 0.0f;
+  if (phase >= 1.0f) return 1.0f;
+  return phase * phase * (3.0f - 2.0f * phase);
+}
+
+static uint32_t activity_dot_color_offset_ms(uint32_t dot_age_ms, int index) {
+  uint32_t target_ms = index * ACTIVITY_COLOR_DOT_PHASE_MS;
+  if (target_ms == 0) return 0;
+  float spread =
+      smoothstep01((float)dot_age_ms / (float)ACTIVITY_COLOR_SPREAD_IN_MS);
+  return (uint32_t)(target_ms * spread + 0.5f);
+}
+
 static lv_color_t activity_color_at(uint32_t elapsed_ms) {
   uint32_t cycle_ms = elapsed_ms % ACTIVITY_COLOR_CYCLE_MS;
   float phase = eased_cycle_phase(cycle_ms, ACTIVITY_COLOR_CYCLE_MS);
@@ -339,10 +356,16 @@ static void tick_activity_dots(uint32_t now) {
 
   activity_anim_last_ms = now;
   uint32_t elapsed_ms = now - activity_anim_started_ms;
-  lv_color_t color = activity_color_at(elapsed_ms);
   for (int i = 0; i < activity_visible_count; i++) {
+    uint32_t dot_started_ms =
+        activity_dot_started_ms[i] ? activity_dot_started_ms[i]
+                                   : activity_anim_started_ms;
+    uint32_t dot_age_ms = now - dot_started_ms;
+    uint32_t color_elapsed_ms =
+        elapsed_ms + activity_dot_color_offset_ms(dot_age_ms, i);
     uint32_t breath_elapsed_ms = elapsed_ms + i * ACTIVITY_DOT_PHASE_MS;
-    lv_obj_set_style_bg_color(activity_dots[i], color, 0);
+    lv_obj_set_style_bg_color(
+        activity_dots[i], activity_color_at(color_elapsed_ms), 0);
     lv_obj_set_style_bg_opa(
         activity_dots[i], activity_breath_opa_at(breath_elapsed_ms), 0);
   }
@@ -518,24 +541,24 @@ void ui_update_activity(const ActivityModel& activity) {
 
   for (int i = 0; i < ACTIVITY_MAX_DOTS; i++) {
     if (i < count) {
+      bool dot_newly_visible =
+          restart_anim || i >= activity_visible_count ||
+          activity_dot_started_ms[i] == 0;
       lv_obj_set_pos(
           activity_dots[i],
           start_x + i * (ACTIVITY_DOT_SIZE + ACTIVITY_DOT_GAP),
           ACTIVITY_DOT_Y);
-      if (restart_anim) {
-        lv_obj_set_style_bg_color(activity_dots[i], activity_color_at(0), 0);
-        lv_obj_set_style_bg_opa(activity_dots[i], LV_OPA_COVER, 0);
-      } else if (i >= activity_visible_count) {
+      if (dot_newly_visible) {
+        activity_dot_started_ms[i] = now;
         uint32_t elapsed_ms = now - activity_anim_started_ms;
-        uint32_t breath_elapsed_ms = elapsed_ms + i * ACTIVITY_DOT_PHASE_MS;
         lv_obj_set_style_bg_color(
             activity_dots[i], activity_color_at(elapsed_ms), 0);
-        lv_obj_set_style_bg_opa(
-            activity_dots[i], activity_breath_opa_at(breath_elapsed_ms), 0);
+        lv_obj_set_style_bg_opa(activity_dots[i], LV_OPA_COVER, 0);
       }
       lv_obj_clear_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_add_flag(activity_dots[i], LV_OBJ_FLAG_HIDDEN);
+      activity_dot_started_ms[i] = 0;
     }
   }
 
