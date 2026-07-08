@@ -1,0 +1,37 @@
+CHANGELOG.md
+  s_63e842c762ea45::t_49c52444a1aaf0 6-8
+README.md
+  s_63e842c762ea45::t_1851390e5b1c3e 369
+codexmeter/ble.py
+  s_63e842c762ea45::t_c6ab5aea2be424 14-15,36-39,73-99,109-110,116-117,143-146,151-153,231-232,236-296,299-307,317,326-328,340,348-371
+codexmeter/daemon.py
+  s_63e842c762ea45::t_02749630558491 10,21-22,29-30,38,43,55-58,66-72,74,81,121-122,124-128,174-179
+codexmeter/events.py
+  s_63e842c762ea45::t_8081a3228312b5 25,110-115,118,158-161
+codexmeter/settings.py
+  s_63e842c762ea45::t_aa3bbc115340a6 23-24
+tests/test_ble.py
+  s_63e842c762ea45::t_490b0e80827f1a 6,25-35,67-81,97-110,127-149
+tests/test_daemon.py
+  s_63e842c762ea45::t_3cd6d77b0f3117 3,24-65
+tests/test_events.py
+  s_63e842c762ea45::t_bb797b7fdacc4b 141-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "bca2b161215dd712d79c28faa79834b14dec6c8c",
+  "prompts": {},
+  "sessions": {
+    "s_63e842c762ea45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f373f-5802-7082-b6ad-497a45843699",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
