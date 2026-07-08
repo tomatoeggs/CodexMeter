@@ -138,3 +138,20 @@ def test_screen_event_queues_control_payload():
         assert payloads[-1].data["why"] == "manual"
 
     asyncio.run(scenario())
+
+
+def test_ping_includes_optional_status_provider_fields():
+    async def scenario():
+        async def sink(_payload):
+            raise AssertionError("ping should not queue payloads")
+
+        server = EventServer(sink, status_provider=lambda: {"ble": {"connected": True}})
+        result = await server._dispatch({"type": "ping"})
+
+        assert result == {
+            "ok": True,
+            "status": "running",
+            "ble": {"connected": True},
+        }
+
+    asyncio.run(scenario())

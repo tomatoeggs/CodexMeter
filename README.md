@@ -366,7 +366,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 如果设备刚烧录完成，BLE 会短暂断开，daemon 通常会自动扫描并重连。
 
-如果 CoreBluetooth 连接处于假活状态，daemon 会在 BLE 写入或设备 ACK 超时后主动断开本次会话，并重新扫描连接。默认写入和 ACK 超时都是 10 秒，可通过 `codexmeterd --ble-write-timeout` 和 `--ble-ack-timeout` 调整。
+如果 CoreBluetooth 连接处于假活状态，daemon 会在 BLE notify 订阅、BLE 写入或设备 ACK 超时后主动断开本次会话，并重新扫描连接。默认写入和 ACK 超时都是 10 秒，notify 订阅超时为 5 秒，应用层 heartbeat 间隔为 45 秒，可通过 `codexmeterd --ble-write-timeout`、`--ble-ack-timeout`、`--ble-notify-timeout` 和 `--ble-healthcheck-interval` 调整。`codexmeterctl status` 会额外显示 BLE 连接状态、队列深度、最近写入/ACK 时间和连续失败次数。
 
 如果任务完成提醒没有出现，优先检查：
 

@@ -22,6 +22,7 @@ from .settings import EVENT_SOCKET
 log = logging.getLogger(__name__)
 
 PayloadSink = Callable[[Payload], Awaitable[None]]
+StatusProvider = Callable[[], dict[str, Any]]
 
 
 TASK_ID_FIELDS = ("task_id", "turn_id", "session_id", "conversation_id")
@@ -106,9 +107,15 @@ class ActivityTracker:
 
 
 class EventServer:
-    def __init__(self, sink: PayloadSink, socket_path: Path = EVENT_SOCKET) -> None:
+    def __init__(
+        self,
+        sink: PayloadSink,
+        socket_path: Path = EVENT_SOCKET,
+        status_provider: StatusProvider | None = None,
+    ) -> None:
         self.sink = sink
         self.socket_path = socket_path
+        self.status_provider = status_provider
         self.server: asyncio.AbstractServer | None = None
         self.activity = ActivityTracker()
 
@@ -148,7 +155,10 @@ class EventServer:
     async def _dispatch(self, event: dict[str, Any]) -> dict[str, Any]:
         event_type = event.get("type")
         if event_type == "ping":
-            return {"ok": True, "status": "running"}
+            response: dict[str, Any] = {"ok": True, "status": "running"}
+            if self.status_provider is not None:
+                response.update(self.status_provider())
+            return response
         if event_type == "alert":
             body = str(event.get("body") or event.get("summary") or "")
             title = str(event.get("title") or "任务完成！")

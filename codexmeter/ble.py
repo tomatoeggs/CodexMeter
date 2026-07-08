@@ -11,6 +11,8 @@ from typing import Any
 from .payloads import Payload
 from .settings import (
     BLE_ACK_TIMEOUT_SEC,
+    BLE_HEALTHCHECK_INTERVAL_SEC,
+    BLE_NOTIFY_TIMEOUT_SEC,
     BLE_WRITE_TIMEOUT_SEC,
     DEVICE_NAME,
     REQ_CHAR_UUID,
@@ -29,6 +31,10 @@ class BleWriteTimeout(RuntimeError):
 
 class BleAckTimeout(RuntimeError):
     """Raised when the device does not confirm a payload after it is written."""
+
+
+class BleNotifyError(RuntimeError):
+    """Raised when mandatory BLE notifications cannot be subscribed."""
 
 
 class BleAckTracker:
@@ -64,6 +70,33 @@ class BleState:
     last_activity: Payload | None = None
     last_payload: Payload | None = None
     connect_control: Payload | None = None
+    connected: bool = False
+    last_connected_at: float | None = None
+    last_disconnected_at: float | None = None
+    last_write_at: float | None = None
+    last_ack_at: float | None = None
+    consecutive_failures: int = 0
+    last_error: str | None = None
+
+    def status(self, queue_depth: int = 0, now: float | None = None) -> dict[str, Any]:
+        now = asyncio.get_running_loop().time() if now is None else now
+
+        def age(value: float | None) -> float | None:
+            if value is None:
+                return None
+            return round(max(0.0, now - value), 1)
+
+        return {
+            "connected": self.connected,
+            "queue_depth": queue_depth,
+            "last_connected_age_sec": age(self.last_connected_at),
+            "last_disconnected_age_sec": age(self.last_disconnected_at),
+            "last_write_age_sec": age(self.last_write_at),
+            "last_ack_age_sec": age(self.last_ack_at),
+            "consecutive_failures": self.consecutive_failures,
+            "last_error": self.last_error,
+            "last_payload": self.last_payload.kind if self.last_payload else None,
+        }
 
 
 class BleTransport:
@@ -73,11 +106,15 @@ class BleTransport:
         scan_timeout_sec: float = SCAN_TIMEOUT_SEC,
         write_timeout_sec: float = BLE_WRITE_TIMEOUT_SEC,
         ack_timeout_sec: float = BLE_ACK_TIMEOUT_SEC,
+        notify_timeout_sec: float = BLE_NOTIFY_TIMEOUT_SEC,
+        healthcheck_interval_sec: float = BLE_HEALTHCHECK_INTERVAL_SEC,
     ) -> None:
         self.device_name = device_name
         self.scan_timeout_sec = scan_timeout_sec
         self.write_timeout_sec = write_timeout_sec
         self.ack_timeout_sec = ack_timeout_sec
+        self.notify_timeout_sec = notify_timeout_sec
+        self.healthcheck_interval_sec = healthcheck_interval_sec
 
     async def run(
         self,
@@ -103,11 +140,17 @@ class BleTransport:
                 backoff = 1.0 if used else min(backoff * 2, 60.0)
             except asyncio.CancelledError:
                 raise
-            except (BleWriteTimeout, BleAckTimeout) as exc:
+            except (BleWriteTimeout, BleAckTimeout, BleNotifyError) as exc:
+                state.connected = False
+                state.consecutive_failures += 1
+                state.last_error = str(exc)
                 log.warning("%s; reconnecting in %.0fs", exc, backoff)
                 await _sleep_or_stop(stop_event, backoff)
                 backoff = min(backoff * 2, 60.0)
             except Exception:
+                state.connected = False
+                state.consecutive_failures += 1
+                state.last_error = "BLE loop error"
                 log.exception("BLE loop error")
                 await _sleep_or_stop(stop_event, backoff)
                 backoff = min(backoff * 2, 60.0)
@@ -183,60 +226,85 @@ class BleTransport:
         used_successfully = False
         async with BleakClient(target) as client:
             log.info("Connected to %s", display)
-            with contextlib_suppress_bleak():
-                await client.start_notify(REQ_CHAR_UUID, on_refresh)
             ack_tracker: BleAckTracker | None = BleAckTracker()
             try:
-                await client.start_notify(
+                await self._start_notify(
+                    client,
                     TX_CHAR_UUID,
                     lambda char, data: self._on_ack(char, data, ack_tracker),
                 )
-            except (BleakError, ValueError) as exc:
-                log.debug("BLE ACK notifications unavailable: %s", exc)
-                ack_tracker = None
+            except (BleakError, ValueError, BleNotifyError) as exc:
+                raise BleNotifyError("BLE ACK notifications unavailable") from exc
 
-            if state.connect_control is not None:
-                await self._write_payload(client, state.connect_control, ack_tracker)
-                used_successfully = True
-            if state.last_usage is not None:
-                await self._write_payload(client, state.last_usage, ack_tracker)
-                used_successfully = True
-            if state.last_activity is not None:
-                await self._write_payload(client, state.last_activity, ack_tracker)
-                used_successfully = True
+            try:
+                await self._start_notify(client, REQ_CHAR_UUID, on_refresh)
+            except (BleakError, ValueError, BleNotifyError) as exc:
+                log.debug("BLE refresh notifications unavailable: %s", exc)
 
-            while client.is_connected and not stop_event.is_set():
-                payload_task = asyncio.create_task(queue.get())
-                refresh_task = asyncio.create_task(refresh_requested.wait())
-                stop_task = asyncio.create_task(stop_event.wait())
-                done, pending = await asyncio.wait(
-                    {payload_task, refresh_task, stop_task},
-                    return_when=asyncio.FIRST_COMPLETED,
-                    timeout=30,
-                )
-                for task in pending:
-                    task.cancel()
+            loop = asyncio.get_running_loop()
+            state.connected = True
+            state.last_connected_at = loop.time()
+            state.last_error = None
 
-                if stop_task in done:
-                    break
-                if refresh_task in done and refresh_requested.is_set():
-                    refresh_requested.clear()
-                    if state.last_usage is not None:
-                        await self._write_payload(client, state.last_usage, ack_tracker)
-                        used_successfully = True
-                    continue
-                if payload_task in done:
-                    payload = payload_task.result()
-                    if not self._should_write_payload(payload, state):
-                        log.info("Skipped stale BLE payload %s", payload.kind)
-                        continue
-                    await self._write_payload(client, payload, ack_tracker)
-                    state.last_payload = payload
-                    if payload.kind == "usage":
-                        state.last_usage = payload
-                    elif payload.kind == "activity":
-                        state.last_activity = payload
+            try:
+                if state.connect_control is not None:
+                    await self._write_payload(
+                        client, state.connect_control, ack_tracker, state
+                    )
                     used_successfully = True
+                if state.last_usage is not None:
+                    await self._write_payload(
+                        client, state.last_usage, ack_tracker, state
+                    )
+                    used_successfully = True
+                if state.last_activity is not None:
+                    await self._write_payload(
+                        client, state.last_activity, ack_tracker, state
+                    )
+                    used_successfully = True
+
+                while client.is_connected and not stop_event.is_set():
+                    payload_task = asyncio.create_task(queue.get())
+                    refresh_task = asyncio.create_task(refresh_requested.wait())
+                    stop_task = asyncio.create_task(stop_event.wait())
+                    health_task = asyncio.create_task(
+                        asyncio.sleep(self.healthcheck_interval_sec)
+                    )
+                    done, pending = await asyncio.wait(
+                        {payload_task, refresh_task, stop_task, health_task},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for task in pending:
+                        task.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+
+                    if stop_task in done:
+                        break
+                    if refresh_task in done and refresh_requested.is_set():
+                        refresh_requested.clear()
+                        if state.last_usage is not None:
+                            await self._write_payload(
+                                client, state.last_usage, ack_tracker, state
+                            )
+                            used_successfully = True
+                        continue
+                    if payload_task in done:
+                        payload = payload_task.result()
+                        if not self._should_write_payload(payload, state):
+                            log.info("Skipped stale BLE payload %s", payload.kind)
+                            continue
+                        await self._write_payload(client, payload, ack_tracker, state)
+                        used_successfully = True
+                        continue
+                    if health_task in done:
+                        heartbeat = state.last_usage or state.last_activity
+                        if heartbeat is not None:
+                            log.info("BLE health check with %s payload", heartbeat.kind)
+                            await self._write_payload(client, heartbeat, ack_tracker, state)
+                            used_successfully = True
+            finally:
+                state.connected = False
+                state.last_disconnected_at = loop.time()
 
         log.info("BLE disconnected from %s", display)
         return used_successfully
@@ -246,6 +314,7 @@ class BleTransport:
         client: Any,
         payload: Payload,
         ack_tracker: BleAckTracker | None = None,
+        state: BleState | None = None,
     ) -> None:
         data = payload.to_json_bytes()
         log.debug(
@@ -254,6 +323,9 @@ class BleTransport:
             data.decode("utf-8", errors="replace"),
         )
         previous_ack_count = ack_tracker.count if ack_tracker is not None else 0
+        loop = asyncio.get_running_loop()
+        if state is not None:
+            state.last_write_at = loop.time()
         try:
             await asyncio.wait_for(
                 client.write_gatt_char(RX_CHAR_UUID, data, response=True),
@@ -265,7 +337,7 @@ class BleTransport:
             ) from exc
 
         if ack_tracker is None:
-            return
+            raise BleNotifyError("BLE ACK tracker is unavailable")
 
         try:
             await ack_tracker.wait_for_next(previous_ack_count, self.ack_timeout_sec)
@@ -273,6 +345,30 @@ class BleTransport:
             raise BleAckTimeout(
                 f"BLE ACK for {payload.kind} timed out after {self.ack_timeout_sec:.1f}s"
             ) from exc
+        if state is not None:
+            self._remember_payload(payload, state)
+            state.last_ack_at = loop.time()
+            state.consecutive_failures = 0
+            state.last_error = None
+
+    async def _start_notify(self, client: Any, uuid: str, callback: Any) -> None:
+        try:
+            await asyncio.wait_for(
+                client.start_notify(uuid, callback),
+                timeout=self.notify_timeout_sec,
+            )
+        except asyncio.TimeoutError as exc:
+            raise BleNotifyError(
+                f"BLE notify {uuid} timed out after {self.notify_timeout_sec:.1f}s"
+            ) from exc
+
+    @staticmethod
+    def _remember_payload(payload: Payload, state: BleState) -> None:
+        state.last_payload = payload
+        if payload.kind == "usage":
+            state.last_usage = payload
+        elif payload.kind == "activity":
+            state.last_activity = payload
 
     def _should_write_payload(self, payload: Payload, state: BleState) -> bool:
         if payload.kind != "control":

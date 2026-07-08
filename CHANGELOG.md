@@ -3,6 +3,9 @@
 ## 未发布
 
 - 新增 AMOLED 防烧屏像素漂移：正常页每 10 分钟在 2px 范围内整体轻微移动，任务完成提醒和亮度浮层保持固定。
+- 强化 macOS 端 BLE 健康检查：TX ACK notify 订阅失败时不再降级为“写入成功”，并增加 45 秒应用层 heartbeat，避免 CoreBluetooth 假活导致设备端持续 `stale`。
+- Codex 用量读取失败时，会用上一次成功数据发送 `stale` heartbeat，保持 BLE 链路探活并明确区分数据源异常和蓝牙异常。
+- `codexmeterctl status` 会返回 BLE 健康字段，包括连接状态、队列深度、最近写入/ACK 时间和连续失败次数。
 
 ## v0.5.1
 
