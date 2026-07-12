@@ -4,16 +4,17 @@ CodexMeter 会调用本机 Codex App Server 获取订阅用量，但项目代码
 
 ## 支持范围
 
-当前首版支持：
+安全修复优先覆盖 `main` 和最新的 `2.0.x` 版本，范围包括：
 
 - macOS host daemon
-- Codex `Stop` hook 和 `notify` 包装器
+- Codex `UserPromptSubmit` 和 `Stop` hooks
+- 多设备发现、身份校验和本地设备注册表
 - Waveshare ESP32-S3-Touch-AMOLED-2.16 固件
 - BLE 本地通信
 
 ## 报告安全问题
 
-如果发现可能导致凭据泄露、任意代码执行、BLE 未授权写入或其他安全问题，请优先通过 GitHub 私密漏洞报告功能联系维护者。若仓库未启用该功能，请先私下联系维护者，再公开 issue。
+如果发现可能导致凭据泄露、任意代码执行、BLE 未授权写入或其他安全问题，请优先通过 GitHub 仓库的 **Security > Report a vulnerability** 私密联系维护者。若仓库未启用该功能，请先私下联系维护者，不要在公开 issue 中披露漏洞细节、凭据或个人日志。
 
 报告时请尽量包含：
 

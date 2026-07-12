@@ -3,11 +3,11 @@
 ## 调研结论
 
 - Codex 剩余用量以本仓库的 `codex_limits_demo.py` 为准：通过 `codex app-server --listen stdio://` 走 JSON-RPC，初始化后读取 `account/read` 与 `account/rateLimits/read`。
-- Clawdmeter 的硬件目标是 Waveshare ESP32-S3-Touch-AMOLED-2.16，屏幕为 480x480 CO5300，PMU 为 AXP2101；CodexMeter 首版保持同一硬件。
-- Waveshare ESP32-S3-Touch-AMOLED-2.16 板载 QMI8658 六轴 IMU，固件通过加速度计判断重力方向；CO5300 驱动不可靠提供 90/270 度硬件旋转，因此首版采用 CPU 侧局部刷新旋转。
+- Clawdmeter 的硬件目标是 Waveshare ESP32-S3-Touch-AMOLED-2.16，屏幕为 480x480 CO5300，PMU 为 AXP2101；CodexMeter 当前支持同一硬件。
+- Waveshare ESP32-S3-Touch-AMOLED-2.16 板载 QMI8658 六轴 IMU，固件通过加速度计判断重力方向；CO5300 驱动不可靠提供 90/270 度硬件旋转，因此当前实现采用 CPU 侧局部刷新旋转。
 - BLE 沿用 Clawdmeter 的自定义数据服务 UUID：service `...0001`，RX write `...0002`，TX notify `...0003`。CodexMeter 额外保留 `...0004` 作为设备主动请求刷新信号。
 - 固件保持 PlatformIO、Arduino_GFX、LVGL、ArduinoJson、NimBLE 技术栈，以降低硬件适配风险。
-- 首版只面向 macOS + Waveshare ESP32-S3-Touch-AMOLED-2.16 + Codex 订阅余量，但协议中的 `src` 和模块边界为未来其他订阅来源预留了空间。
+- 当前只面向 macOS + Waveshare ESP32-S3-Touch-AMOLED-2.16 + Codex 订阅余量，但协议中的 `src` 和模块边界为未来其他订阅来源预留了空间。
 
 ## 模块职责
 
@@ -197,7 +197,7 @@ GATT UUID：
 
 - `v`：协议版本。
 - `k`：payload 类型，当前支持 `usage`、`alert`、`activity` 和 `control`。
-- `src`：用量来源，首版为 `codex`。
+- `src`：用量来源，当前为 `codex`。
 - `h5` / `d7`：剩余百分比，整数。
 - `h5r` / `d7r`：重置时间戳，单位为秒。
 - `st`：状态，例如 `ok`、`stale` 或 Codex App Server 返回的限额状态。
