@@ -40,7 +40,7 @@
 
 1. daemon 每 60 秒拉取 Codex App Server 限额。
 2. daemon 将 `codex` 限额归一化为 `UsageSnapshot`，生成 `usage` payload 并放入发送队列。
-3. BLE discovery 按 service UUID 和 `CodexMeter-<short_id>` 广播名持续发现附近设备；每台已登记设备由独立 worker 连接后写入 RX characteristic。
+3. BLE discovery 按 service UUID 和 `CodexMeter-<short_id>` 广播名持续发现附近设备；worker 连接后先读取 identity characteristic，校验完整芯片 ID，再写入 RX characteristic。
 4. 固件解析 `usage`，更新 5h/7d 剩余百分比，并用 `t` 加设备本地经过时间计算重置倒计时：
    - 5h 显示为 `HH:MM 后重置`
    - 7d 显示为 `xd 后重置`
@@ -53,9 +53,10 @@
 11. daemon 会同时发送 `activity` payload，并把完成后的 `run` 数量写入 `alert` payload，避免 BLE 连续写入丢失时小蓝点残留。
 12. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
 13. 固件 BLE RX 使用小队列缓存连续 payload；收到携带 `run` 的 `alert` 时，会在显示提醒前同步更新活动任务数。
-14. 固件收到 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
-15. 用户可按中间按键切换 AMOLED 亮屏和关闭；提醒显示时关屏会同时关闭当前提醒。
-16. 用户可按左/右按键降低/增加亮度，固件显示 3 秒亮度进度条。
+14. daemon 在收到设备 ACK 前保留告警 in-flight，断连后自动重试；固件缓存最近的告警 ID 并对重试去重。
+15. 固件收到新 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
+16. 用户可按中间按键切换 AMOLED 亮屏和关闭；提醒显示时关屏会同时关闭当前提醒。
+17. 用户可按左/右按键降低/增加亮度，固件显示 3 秒亮度进度条。
 
 ## 屏幕电源控制链路
 
@@ -122,6 +123,8 @@
 
 日志链路与截图链路共用 USB CDC 串口，不进入 BLE 协议。日志只保存运行事件和状态摘要，不保存 Codex token 或完整 payload 正文。
 
+macOS daemon 使用 50MB 当前日志加一个 50MB 轮转备份，总占用上限约 100MB。设备注册表和用量缓存使用同目录临时文件、`fsync` 和原子替换；注册表额外保留一份 last-known-good 备份。
+
 ## 显示模型
 
 正常页：
@@ -140,7 +143,7 @@
 提醒页：
 
 - 闪动阶段：只显示红、黄、绿全屏背景，不显示文字。
-- 内容阶段：固定区域显示标题和正文，避免动态摘要与标题重叠。
+- 内容阶段：固定区域显示标题和最多四行正文，超出部分在第四行省略，避免动态摘要与标题重叠。
 - 标题使用 30px 中文字体，正文使用 28px 专用中文字库。
 - 提醒显示时关屏会同时关闭当前提醒。
 

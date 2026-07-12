@@ -69,6 +69,7 @@ static const int ALERT_BODY_X =
     ALERT_TEXT_X + CODEXMETER_ALERT_BODY_VISUAL_OFFSET_X;
 static const int ALERT_TITLE_Y = 126;
 static const int ALERT_BODY_Y = 190;
+static const int ALERT_BODY_LINES = 4;
 static const int ACTIVITY_MAX_DOTS = 12;
 static const int ACTIVITY_DOT_SIZE = 10;
 static const int ACTIVITY_DOT_GAP = 9;
@@ -249,7 +250,8 @@ static void layout_alert_text() {
   lv_obj_set_width(alert_title, ALERT_TEXT_W);
   lv_obj_set_pos(alert_title, ALERT_TITLE_X, ALERT_TITLE_Y);
 
-  lv_obj_set_width(alert_body, ALERT_TEXT_W);
+  lv_obj_set_size(
+      alert_body, ALERT_TEXT_W, body_font()->line_height * ALERT_BODY_LINES);
   lv_obj_set_pos(alert_body, ALERT_BODY_X, ALERT_BODY_Y);
 }
 
@@ -508,8 +510,9 @@ void ui_init() {
   lv_obj_set_style_text_align(alert_title, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_pos(alert_title, ALERT_TITLE_X, ALERT_TITLE_Y);
   alert_body = make_label(alert_layer, "", body_font(), TEXT);
-  lv_obj_set_width(alert_body, ALERT_TEXT_W);
-  lv_label_set_long_mode(alert_body, LV_LABEL_LONG_WRAP);
+  lv_obj_set_size(
+      alert_body, ALERT_TEXT_W, body_font()->line_height * ALERT_BODY_LINES);
+  lv_label_set_long_mode(alert_body, LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_align(alert_body, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_pos(alert_body, ALERT_BODY_X, ALERT_BODY_Y);
 

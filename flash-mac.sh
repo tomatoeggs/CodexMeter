@@ -4,12 +4,34 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 ENV_NAME="${1:-waveshare_amoled_216}"
 PORT="${2:-}"
+FORCE="${3:-}"
 PIO_BIN="$ROOT/.venv/bin/pio"
+PY_BIN="$ROOT/.venv/bin/python"
+
+if [[ "$ENV_NAME" == "--all" ]]; then
+  ENV_NAME="waveshare_amoled_216"
+  PORT="--all"
+  FORCE=""
+fi
 
 if [[ ! -x "$PIO_BIN" ]]; then
   if command -v pio >/dev/null 2>&1; then
     PIO_BIN="$(command -v pio)"
   fi
+fi
+
+if [[ ! -x "$PY_BIN" ]]; then
+  PY_BIN="$(command -v python3 || true)"
+fi
+
+if [[ -z "$PY_BIN" ]]; then
+  echo "Python 3 not found; it is required for safe device identification." >&2
+  exit 1
+fi
+
+if [[ -n "$FORCE" && "$FORCE" != "--force" ]]; then
+  echo "Unknown third argument: $FORCE" >&2
+  exit 1
 fi
 
 if [[ ! -x "$PIO_BIN" ]]; then
@@ -20,19 +42,12 @@ fi
 export PLATFORMIO_CORE_DIR="${PLATFORMIO_CORE_DIR:-$ROOT/.platformio}"
 
 find_ports() {
-  shopt -s nullglob
-  local ports=(/dev/cu.usbmodem* /dev/cu.usbserial*)
-  local port
-  for port in "${ports[@]}"; do
-    if [[ "$port" != *000000000000* ]]; then
-      echo "$port"
-    fi
-  done
-  for port in "${ports[@]}"; do
-    if [[ "$port" == *000000000000* ]]; then
-      echo "$port"
-    fi
-  done
+  "$PY_BIN" "$ROOT/tools/serial_device.py" --identified-ports
+}
+
+verify_port() {
+  local port="$1"
+  "$PY_BIN" "$ROOT/tools/serial_device.py" --identify "$port" >/dev/null
 }
 
 upload_one() {
@@ -79,6 +94,15 @@ fi
 if [[ -z "$PORT" ]]; then
   echo "No serial port found. Pass one explicitly, e.g. ./flash-mac.sh $ENV_NAME /dev/cu.usbmodem1101" >&2
   exit 1
+fi
+
+if [[ "$PORT" != "--all" ]] && ! verify_port "$PORT"; then
+  if [[ "$FORCE" != "--force" ]]; then
+    echo "Refusing to flash unidentified serial port $PORT." >&2
+    echo "Reconnect a running CodexMeter, or append --force for bootloader recovery." >&2
+    exit 1
+  fi
+  echo "Warning: forcing upload to unidentified port $PORT" >&2
 fi
 
 upload_one "$PORT"

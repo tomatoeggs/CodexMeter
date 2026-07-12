@@ -14,7 +14,10 @@ from .limits import UsageSnapshot
 
 
 MAX_BLE_PAYLOAD_BYTES = 512
+MAX_ALERT_TITLE_BYTES = 47
+MAX_ALERT_TITLE_CHARS = 16
 MAX_ALERT_BODY_BYTES = 210
+MAX_ALERT_BODY_CHARS = 64
 
 
 @dataclass(frozen=True)
@@ -79,10 +82,15 @@ def build_alert_payload(
     now: int | None = None,
     running_count: int | None = None,
 ) -> Payload:
-    title_text = sanitize_device_text(clean_summary(title), fallback="任务完成！")
-    body_text = truncate_utf8(
+    title_text = truncate_text(
+        sanitize_device_text(clean_summary(title), fallback="任务完成！"),
+        max_chars=MAX_ALERT_TITLE_CHARS,
+        max_bytes=MAX_ALERT_TITLE_BYTES,
+    )
+    body_text = truncate_text(
         sanitize_device_text(clean_summary(body)),
-        MAX_ALERT_BODY_BYTES,
+        max_chars=MAX_ALERT_BODY_CHARS,
+        max_bytes=MAX_ALERT_BODY_BYTES,
     )
     data = {
         "v": 1,
@@ -149,3 +157,10 @@ def truncate_utf8(text: str, max_bytes: int) -> str:
         except UnicodeDecodeError:
             trimmed = trimmed[:-1]
     return suffix[:max_bytes]
+
+
+def truncate_text(text: str, *, max_chars: int, max_bytes: int) -> str:
+    if len(text) > max_chars:
+        suffix = "..."
+        text = text[: max(0, max_chars - len(suffix))].rstrip() + suffix
+    return truncate_utf8(text, max_bytes)

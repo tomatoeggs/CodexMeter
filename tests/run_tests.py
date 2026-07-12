@@ -21,6 +21,7 @@ TEST_MODULES = [
     "tests.test_ble",
     "tests.test_device_registry",
     "tests.test_multi_ble",
+    "tests.test_supervision",
     "tests.test_hook",
     "tests.test_screenshot_tool",
     "tests.test_device_logs_tool",

@@ -33,3 +33,26 @@ def test_registry_round_trips_devices(tmp_path):
     assert len(loaded.devices) == 1
     assert loaded.devices[0].short_id == "A3F91C"
     assert loaded.devices[0].alias == "Home"
+
+
+def test_registry_recovers_from_atomic_backup(tmp_path):
+    path = tmp_path / "devices.json"
+    registry = DeviceRegistry(path)
+    registry.upsert(config_from_short_id("A3F91C", alias="Home"))
+    registry.save()
+    path.write_text("{broken", encoding="utf-8")
+
+    loaded = DeviceRegistry.load(path)
+
+    assert loaded.devices[0].short_id == "A3F91C"
+
+
+def test_registry_rejects_corruption_without_backup(tmp_path):
+    path = tmp_path / "devices.json"
+    path.write_text("{broken", encoding="utf-8")
+
+    try:
+        DeviceRegistry.load(path)
+    except ValueError:
+        return
+    raise AssertionError("expected corrupt registry to fail closed")

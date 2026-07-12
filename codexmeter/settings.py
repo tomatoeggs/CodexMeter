@@ -9,6 +9,9 @@ APP_DIR = Path.home() / ".codexmeter"
 EVENT_SOCKET = APP_DIR / "events.sock"
 LOG_FILE = APP_DIR / "codexmeter.log"
 DEVICES_FILE = APP_DIR / "devices.json"
+DAEMON_LOCK_FILE = APP_DIR / "daemon.lock"
+
+LOG_MAX_TOTAL_BYTES = 100 * 1024 * 1024
 
 DEVICE_NAME = "CodexMeter"
 SERVICE_UUID = "4c41555a-4465-7669-6365-000000000001"

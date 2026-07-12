@@ -4,12 +4,18 @@ from codexmeter.ble import (
     BleAckError,
     BleAckTimeout,
     BleAckTracker,
+    BleIdentity,
+    BleIdentityError,
     BleNotifyError,
     BleState,
     BleTransport,
     BleWriteTimeout,
 )
-from codexmeter.payloads import build_activity_payload, build_screen_control_payload
+from codexmeter.payloads import (
+    build_activity_payload,
+    build_alert_payload,
+    build_screen_control_payload,
+)
 
 
 class FakeWriteClient:
@@ -207,3 +213,60 @@ def test_ble_state_status_reports_health_ages():
     assert status["consecutive_failures"] == 2
     assert status["last_error"] == "boom"
     assert status["last_payload"] == "activity"
+
+
+def test_ble_identity_parses_required_fields():
+    identity = BleIdentity.from_bytes(
+        b'{"device_id":"codexmeter-f46690858428","short_id":"F46690",'
+        b'"name":"CodexMeter-F46690"}'
+    )
+
+    assert identity.device_id == "codexmeter-f46690858428"
+    assert identity.short_id == "F46690"
+
+
+def test_ble_identity_rejects_incomplete_json():
+    try:
+        BleIdentity.from_bytes(b'{"short_id":"F46690"}')
+    except BleIdentityError:
+        return
+    raise AssertionError("expected incomplete BLE identity to be rejected")
+
+
+def test_ble_identity_rejects_device_id_short_id_mismatch():
+    try:
+        BleIdentity.from_bytes(
+            b'{"device_id":"codexmeter-a3f91c858428","short_id":"F46690",'
+            b'"name":"CodexMeter-F46690"}'
+        )
+    except BleIdentityError:
+        return
+    raise AssertionError("expected inconsistent BLE identity to be rejected")
+
+
+def test_ble_failed_alert_remains_pending_until_ack():
+    async def run() -> None:
+        transport = BleTransport(write_timeout_sec=0.01, ack_timeout_sec=0.01)
+        state = BleState()
+        payload = build_alert_payload("reliable", event_id="alert-1", now=1)
+
+        try:
+            await transport._write_reliably(
+                FakeWriteClient(delay_sec=1.0), payload, BleAckTracker(), state
+            )
+        except BleWriteTimeout:
+            pass
+        else:
+            raise AssertionError("expected BLE write timeout")
+        assert state.pending_alert == payload
+
+    asyncio.run(run())
+
+
+def test_ble_remembers_latest_desired_state_before_ack():
+    state = BleState()
+    payload = build_activity_payload(3, now=1)
+
+    BleTransport.remember_desired(payload, state)
+
+    assert state.last_activity == payload

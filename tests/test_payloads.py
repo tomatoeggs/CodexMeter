@@ -3,6 +3,7 @@ import json
 from codexmeter.limits import UsageSnapshot
 from codexmeter.payloads import (
     MAX_BLE_PAYLOAD_BYTES,
+    Payload,
     build_activity_payload,
     build_alert_payload,
     build_screen_control_payload,
@@ -85,3 +86,33 @@ def test_screen_control_payload_shape_and_size():
 
 def test_sanitize_device_text_falls_back_when_empty():
     assert sanitize_device_text("\n\t\r") == "Codex 任务已完成"
+
+
+def test_alert_payload_can_use_full_512_byte_protocol_limit():
+    payload = Payload(
+        "alert",
+        {
+            "v": 1,
+            "k": "alert",
+            "id": "123456789abc",
+            "title": "t" * 227,
+            "body": "x" * 210,
+            "t": 1783070000,
+        },
+    )
+
+    assert len(payload.to_json_bytes()) == 512
+
+
+def test_alert_builder_caps_text_complexity_for_device_rendering():
+    payload = build_alert_payload(
+        "x" * 210,
+        title="t" * 227,
+        event_id="render-cap",
+        now=1783070000,
+    )
+
+    assert len(payload.data["title"]) == 16
+    assert len(payload.data["body"]) == 64
+    assert payload.data["title"].endswith("...")
+    assert payload.data["body"].endswith("...")

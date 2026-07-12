@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import argparse
 import glob
 import json
 import os
 import select
 import termios
 import time
+import sys
 from dataclasses import dataclass
 
 DEFAULT_BAUD = termios.B115200
@@ -235,3 +237,27 @@ def _optional_str(value: object) -> str | None:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Identify CodexMeter USB serial devices.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--identified-ports", action="store_true")
+    group.add_argument("--identify", metavar="PORT")
+    parser.add_argument("--timeout", type=float, default=DEFAULT_IDENTITY_TIMEOUT)
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+
+    if args.identified_ports:
+        for identity in discover_serial_devices(timeout=args.timeout):
+            print(identity.port)
+        return 0
+
+    identity = query_identity(args.identify, timeout=args.timeout)
+    if identity is None:
+        return 1
+    print(json.dumps(identity.__dict__, separators=(",", ":")))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

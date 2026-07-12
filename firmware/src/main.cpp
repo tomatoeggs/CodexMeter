@@ -42,6 +42,8 @@ static UsageModel usage;
 static AlertModel alert;
 static ActivityModel activity;
 static ControlModel control;
+static char recent_alert_ids[8][sizeof(alert.id)];
+static uint8_t recent_alert_index = 0;
 static uint32_t last_usage_ms = 0;
 static bool screen_on = true;
 static int brightness_percent = CODEXMETER_BRIGHTNESS_DEFAULT;
@@ -294,11 +296,31 @@ static void handle_json(const char* json) {
         usage.d7_remaining, usage.status);
     ble_service_ack();
   } else if (kind == PAYLOAD_ALERT) {
+    bool duplicate = false;
+    if (alert.id[0]) {
+      for (const auto& recent_id : recent_alert_ids) {
+        if (strcmp(recent_id, alert.id) == 0) {
+          duplicate = true;
+          break;
+        }
+      }
+    }
     if (alert.has_running_count) {
       activity.valid = true;
       activity.running_count = alert.running_count;
       activity.updated_at = alert.received_at;
       ui_update_activity(activity);
+    }
+    if (duplicate) {
+      device_logf("INFO", "duplicate alert id=%s", alert.id);
+      ble_service_ack();
+      return;
+    }
+    if (alert.id[0]) {
+      strlcpy(
+          recent_alert_ids[recent_alert_index], alert.id,
+          sizeof(recent_alert_ids[recent_alert_index]));
+      recent_alert_index = (recent_alert_index + 1) % 8;
     }
     ui_show_alert(alert);
     if (alert.has_running_count) {

@@ -166,6 +166,7 @@ class EventServer:
             payload = build_alert_payload(
                 body=body,
                 title=title,
+                event_id=_optional_event_id(event.get("id")),
                 running_count=int(running_count) if running_count is not None else None,
             )
             await self.sink(payload)
@@ -221,6 +222,7 @@ class EventServer:
         payload = build_alert_payload(
             body=body,
             title=title,
+            event_id=_optional_event_id(event.get("id")),
             running_count=self.activity.count,
         )
         await self.sink(payload)
@@ -230,6 +232,13 @@ class EventServer:
             "queued": "task_complete",
             "running": self.activity.count,
         }
+
+
+def _optional_event_id(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text[:31] or None
 
 
 async def send_event(event: dict[str, Any], socket_path: Path = EVENT_SOCKET) -> dict[str, Any]:

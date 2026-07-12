@@ -7,11 +7,13 @@ import logging
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .ble import (
     BleAckError,
     BleAckTimeout,
+    BleIdentity,
+    BleIdentityError,
     BleNotifyError,
     BleState,
     BleTransport,
@@ -20,13 +22,18 @@ from .ble import (
 from .device_registry import (
     DeviceConfig,
     default_legacy_device,
+    is_full_device_id,
+    normalize_device_id,
+    normalize_short_id,
     parse_short_id_from_name,
 )
 from .payloads import Payload
 from .queueing import put_latest
 from .settings import DEVICE_NAME, SERVICE_UUID
+from .supervision import supervise
 
 log = logging.getLogger(__name__)
+IdentityObserver = Callable[[DeviceConfig, BleIdentity], DeviceConfig]
 
 
 @dataclass
@@ -170,10 +177,12 @@ class DeviceWorker:
         slot: DeviceSlot,
         discovery: DiscoveryService,
         transport: BleTransport,
+        identity_observer: IdentityObserver | None = None,
     ) -> None:
         self.slot = slot
         self.discovery = discovery
         self.transport = transport
+        self.identity_observer = identity_observer
 
     async def run(self, stop_event: asyncio.Event) -> None:
         backoff = 1.0
@@ -189,12 +198,23 @@ class DeviceWorker:
                     discovered.address,
                 )
                 used = await self.transport.connect_and_write(
-                    discovered.device, self.slot.queue, self.slot.state, stop_event
+                    discovered.device,
+                    self.slot.queue,
+                    self.slot.state,
+                    stop_event,
+                    require_identity=not self.slot.config.legacy,
+                    identity_validator=self._validate_identity,
                 )
                 backoff = 1.0 if used else min(backoff * 2, 60.0)
             except asyncio.CancelledError:
                 raise
-            except (BleWriteTimeout, BleAckTimeout, BleAckError, BleNotifyError) as exc:
+            except (
+                BleWriteTimeout,
+                BleAckTimeout,
+                BleAckError,
+                BleNotifyError,
+                BleIdentityError,
+            ) as exc:
                 self._record_failure(str(exc))
                 await _sleep_or_stop(stop_event, _with_jitter(backoff))
                 backoff = min(backoff * 2, 60.0)
@@ -211,6 +231,26 @@ class DeviceWorker:
         state.last_error = error
         log.warning("CodexMeter %s: %s", self.slot.config.label, error)
 
+    def _validate_identity(self, identity: BleIdentity) -> None:
+        config = self.slot.config
+        if config.short_id and normalize_short_id(identity.short_id) != config.short_id:
+            raise BleIdentityError(
+                f"BLE identity short id {identity.short_id} does not match {config.short_id}"
+            )
+        if is_full_device_id(config.device_id) and normalize_device_id(
+            identity.device_id
+        ) != normalize_device_id(config.device_id):
+            raise BleIdentityError(
+                f"BLE identity {identity.device_id} does not match {config.device_id}"
+            )
+        expected_name = config.name
+        if expected_name and identity.name != expected_name:
+            raise BleIdentityError(
+                f"BLE identity name {identity.name} does not match {expected_name}"
+            )
+        if self.identity_observer is not None and not is_full_device_id(config.device_id):
+            self.slot.config = self.identity_observer(config, identity)
+
 
 class DeviceManager:
     def __init__(
@@ -224,9 +264,11 @@ class DeviceManager:
         notify_timeout_sec: float,
         healthcheck_interval_sec: float,
         fallback_device_name: str = DEVICE_NAME,
+        fallback_when_empty: bool = True,
+        identity_observer: IdentityObserver | None = None,
     ) -> None:
         active_configs = [config for config in configs if config.enabled]
-        if not active_configs:
+        if not active_configs and fallback_when_empty:
             active_configs = [default_legacy_device(fallback_device_name)]
         self.slots = [DeviceSlot(config) for config in active_configs]
         self.discovery = DiscoveryService(
@@ -245,25 +287,24 @@ class DeviceManager:
                     notify_timeout_sec=notify_timeout_sec,
                     healthcheck_interval_sec=healthcheck_interval_sec,
                 ),
+                identity_observer,
             )
             for slot in self.slots
         ]
 
     async def run(self, stop_event: asyncio.Event) -> None:
-        tasks = [asyncio.create_task(self.discovery.run(stop_event), name="ble_discovery")]
-        tasks.extend(
-            asyncio.create_task(worker.run(stop_event), name=f"ble_{worker.slot.config.label}")
-            for worker in self._workers
+        services = {"ble_discovery": self.discovery.run(stop_event)}
+        services.update(
+            {
+                f"ble_{index}_{worker.slot.config.device_id}": worker.run(stop_event)
+                for index, worker in enumerate(self._workers)
+            }
         )
-        try:
-            await stop_event.wait()
-        finally:
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+        await supervise(stop_event, services)
 
     async def broadcast(self, payload: Payload) -> None:
         for slot in self.slots:
+            BleTransport.remember_desired(payload, slot.state)
             await put_latest(slot.queue, payload)
 
     def set_connect_control(self, payload: Payload | None) -> None:

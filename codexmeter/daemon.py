@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import json
 import logging
+import os
 import signal
 import sys
 import time
 from collections.abc import Awaitable, Callable
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import TextIO
 
-from .device_registry import DeviceRegistry
+from .ble import BleIdentity
+from .device_registry import DeviceConfig, DeviceRegistry
 from .events import EventServer
 from .limits import (
     UsageSnapshot,
@@ -22,6 +27,7 @@ from .limits import (
 )
 from .multi_ble import DeviceManager
 from .payloads import Payload, build_activity_payload, build_usage_payload
+from .persistence import atomic_write_json
 from .provider import CodexUsageProvider
 from .queueing import put_latest
 from .screen_policy import screen_policy_loop
@@ -32,13 +38,49 @@ from .settings import (
     BLE_HEALTHCHECK_INTERVAL_SEC,
     BLE_NOTIFY_TIMEOUT_SEC,
     BLE_WRITE_TIMEOUT_SEC,
+    DAEMON_LOCK_FILE,
     LOCK_POLL_INTERVAL_SEC,
     LOG_FILE,
+    LOG_MAX_TOTAL_BYTES,
     POLL_INTERVAL_SEC,
 )
+from .supervision import supervise
 
 USAGE_CACHE_FILE = APP_DIR / "last_usage_snapshot.json"
 PayloadSink = Callable[[Payload], Awaitable[None]]
+
+
+class DaemonAlreadyRunning(RuntimeError):
+    pass
+
+
+class DaemonLock:
+    def __init__(self, path: Path = DAEMON_LOCK_FILE) -> None:
+        self.path = path
+        self.handle: TextIO | None = None
+
+    def __enter__(self) -> "DaemonLock":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.path.open("a+", encoding="ascii")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            handle.close()
+            raise DaemonAlreadyRunning("CodexMeter daemon is already running") from exc
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()}\n")
+        handle.flush()
+        self.handle = handle
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        if self.handle is None:
+            return
+        handle = self.handle
+        self.handle = None
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
 
 
 async def quota_loop(
@@ -153,9 +195,7 @@ def save_cached_usage_snapshot(
 ) -> None:
     path_obj = Path(path)
     try:
-        path_obj.parent.mkdir(parents=True, exist_ok=True)
-        with path_obj.open("w", encoding="utf-8") as handle:
-            json.dump(usage_snapshot_to_cache(snapshot), handle, separators=(",", ":"))
+        atomic_write_json(path_obj, usage_snapshot_to_cache(snapshot))
     except OSError:
         logging.exception("Failed to save usage cache")
 
@@ -224,11 +264,35 @@ async def run_daemon(args: argparse.Namespace) -> None:
         timeout_sec=args.timeout,
         refresh_token=args.refresh_token,
     )
-    try:
-        registry = DeviceRegistry.load()
-    except ValueError:
-        logging.exception("Failed to load device registry")
-        registry = DeviceRegistry()
+    registry = DeviceRegistry.load()
+
+    def bind_identity(config: DeviceConfig, identity: BleIdentity) -> DeviceConfig:
+        if config.device_id == identity.device_id and config.name == identity.name:
+            return config
+        updated = DeviceConfig(
+            device_id=identity.device_id,
+            short_id=identity.short_id,
+            alias=config.alias,
+            enabled=config.enabled,
+            name=identity.name,
+            macos_uuid=config.macos_uuid,
+            legacy=False,
+        )
+        registry.upsert(updated)
+        try:
+            registry.save()
+        except OSError:
+            logging.exception(
+                "Failed to persist identity binding for CodexMeter %s", updated.label
+            )
+        else:
+            logging.info(
+                "Bound CodexMeter %s to identity %s",
+                updated.label,
+                identity.device_id,
+            )
+        return updated
+
     manager = DeviceManager(
         registry.enabled_devices(),
         scan_timeout_sec=args.scan_timeout,
@@ -238,6 +302,8 @@ async def run_daemon(args: argparse.Namespace) -> None:
         notify_timeout_sec=args.ble_notify_timeout,
         healthcheck_interval_sec=args.ble_healthcheck_interval,
         fallback_device_name=args.device_name,
+        fallback_when_empty=not registry.devices,
+        identity_observer=bind_identity,
     )
     await manager.broadcast(build_activity_payload(0))
 
@@ -249,13 +315,12 @@ async def run_daemon(args: argparse.Namespace) -> None:
 
     event_server = EventServer(sink, status_provider=status_provider)
 
-    tasks = [
-        asyncio.create_task(event_server.run(stop_event), name="events"),
-        asyncio.create_task(
-            quota_loop(provider, sink, stop_event, args.poll_interval), name="quota"
-        ),
-        asyncio.create_task(
-            screen_policy_loop(
+    await supervise(
+        stop_event,
+        {
+            "events": event_server.run(stop_event),
+            "quota": quota_loop(provider, sink, stop_event, args.poll_interval),
+            "screen_policy": screen_policy_loop(
                 sink,
                 None,
                 stop_event,
@@ -263,26 +328,32 @@ async def run_daemon(args: argparse.Namespace) -> None:
                 poll_interval_sec=args.lock_poll_interval,
                 connect_control_setter=manager.set_connect_control,
             ),
-            name="screen_policy",
-        ),
-        asyncio.create_task(manager.run(stop_event), name="ble"),
-    ]
-
-    await stop_event.wait()
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+            "ble": manager.run(stop_event),
+        },
+    )
 
 
 def configure_logging(level: str, foreground: bool) -> None:
     APP_DIR.mkdir(parents=True, exist_ok=True)
-    handlers: list[logging.Handler] = [logging.FileHandler(LOG_FILE)]
+    handlers: list[logging.Handler] = [build_file_handler()]
     if foreground:
         handlers.append(logging.StreamHandler())
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         handlers=handlers,
+    )
+
+
+def build_file_handler(
+    path: Path = LOG_FILE,
+    total_bytes: int = LOG_MAX_TOTAL_BYTES,
+) -> RotatingFileHandler:
+    return RotatingFileHandler(
+        path,
+        maxBytes=total_bytes // 2,
+        backupCount=1,
+        encoding="utf-8",
     )
 
 
@@ -314,7 +385,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     configure_logging(args.log_level, foreground=args.foreground)
     try:
-        asyncio.run(run_daemon(args))
+        with DaemonLock():
+            asyncio.run(run_daemon(args))
+    except DaemonAlreadyRunning as exc:
+        logging.error("%s", exc)
+        return 1
     except KeyboardInterrupt:
         return 130
     return 0

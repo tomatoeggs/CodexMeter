@@ -92,6 +92,24 @@ def test_task_complete_clears_activity_and_queues_alert():
     asyncio.run(scenario())
 
 
+def test_alert_preserves_explicit_id_for_idempotent_retry():
+    async def scenario():
+        queued = []
+
+        async def sink(payload):
+            queued.append(payload)
+
+        server = EventServer(sink)
+        result = await server._dispatch(
+            {"type": "alert", "id": "stable-alert-1", "body": "done"}
+        )
+
+        assert result["ok"] is True
+        assert queued[0].data["id"] == "stable-alert-1"
+
+    asyncio.run(scenario())
+
+
 def test_task_complete_alert_carries_remaining_activity_count():
     async def scenario():
         payloads = []

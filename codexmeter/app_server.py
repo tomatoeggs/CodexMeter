@@ -14,11 +14,13 @@ import shutil
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import __version__
+
 
 CLIENT_INFO = {
     "name": "codexmeter",
     "title": "CodexMeter",
-    "version": "0.5.1",
+    "version": __version__,
 }
 
 

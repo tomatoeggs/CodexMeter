@@ -8,10 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .persistence import atomic_write_json
 from .settings import DEVICE_NAME, DEVICES_FILE
 
 DEVICE_NAME_PREFIX = f"{DEVICE_NAME}-"
 SHORT_ID_RE = re.compile(rf"^{re.escape(DEVICE_NAME_PREFIX)}([0-9A-Fa-f]{{4,16}})$")
+FULL_DEVICE_ID_RE = re.compile(r"^codexmeter-[0-9a-f]{12}$")
 
 
 @dataclass(frozen=True)
@@ -94,14 +96,27 @@ class DeviceRegistry:
 
     @classmethod
     def load(cls, path: Path = DEVICES_FILE) -> "DeviceRegistry":
-        registry = cls(path)
         try:
-            with path.open(encoding="utf-8") as handle:
-                raw = json.load(handle)
+            return cls._load_path(path, registry_path=path)
         except FileNotFoundError:
-            return registry
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ValueError(f"failed to load device registry {path}: {exc}") from exc
+            return cls(path)
+        except (OSError, json.JSONDecodeError, ValueError) as primary_error:
+            backup_path = path.with_suffix(path.suffix + ".bak")
+            try:
+                return cls._load_path(backup_path, registry_path=path)
+            except FileNotFoundError:
+                pass
+            except (OSError, json.JSONDecodeError, ValueError):
+                pass
+            raise ValueError(
+                f"failed to load device registry {path}: {primary_error}"
+            ) from primary_error
+
+    @classmethod
+    def _load_path(cls, source: Path, *, registry_path: Path) -> "DeviceRegistry":
+        registry = cls(registry_path)
+        with source.open(encoding="utf-8") as handle:
+            raw = json.load(handle)
         if not isinstance(raw, dict):
             raise ValueError("device registry must be a JSON object")
         devices = raw.get("devices", [])
@@ -113,14 +128,15 @@ class DeviceRegistry:
         return registry
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "version": 1,
             "devices": [device.to_json() for device in self.devices],
         }
-        with self.path.open("w", encoding="utf-8") as handle:
-            json.dump(data, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
+        atomic_write_json(
+            self.path,
+            data,
+            backup_path=self.path.with_suffix(self.path.suffix + ".bak"),
+        )
 
     def enabled_devices(self) -> list[DeviceConfig]:
         return [device for device in self.devices if device.enabled]
@@ -178,6 +194,10 @@ def normalize_short_id(value: str) -> str:
 
 def normalize_device_id(value: str) -> str:
     return value.strip().lower()
+
+
+def is_full_device_id(value: str | None) -> bool:
+    return bool(value and FULL_DEVICE_ID_RE.fullmatch(normalize_device_id(value)))
 
 
 def config_from_short_id(short_id: str, *, alias: str | None = None) -> DeviceConfig:

@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from .payloads import Payload
 from .settings import (
@@ -16,6 +17,7 @@ from .settings import (
     BLE_NOTIFY_TIMEOUT_SEC,
     BLE_WRITE_TIMEOUT_SEC,
     DEVICE_NAME,
+    IDENTITY_CHAR_UUID,
     REQ_CHAR_UUID,
     RX_CHAR_UUID,
     SCAN_TIMEOUT_SEC,
@@ -40,6 +42,44 @@ class BleAckError(RuntimeError):
 
 class BleNotifyError(RuntimeError):
     """Raised when mandatory BLE notifications cannot be subscribed."""
+
+
+class BleIdentityError(RuntimeError):
+    """Raised when a connected peripheral has an invalid or unexpected identity."""
+
+
+@dataclass(frozen=True)
+class BleIdentity:
+    device_id: str
+    short_id: str
+    name: str
+
+    @classmethod
+    def from_bytes(cls, raw: bytes | bytearray) -> "BleIdentity":
+        try:
+            data = json.loads(bytes(raw).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BleIdentityError("BLE identity is not valid JSON") from exc
+        if not isinstance(data, dict):
+            raise BleIdentityError("BLE identity must be a JSON object")
+        device_id = data.get("device_id")
+        short_id = data.get("short_id")
+        name = data.get("name")
+        if not all(isinstance(value, str) and value for value in (device_id, short_id, name)):
+            raise BleIdentityError("BLE identity is missing required fields")
+        normalized_device_id = str(device_id).lower()
+        normalized_short_id = str(short_id).upper()
+        normalized_name = str(name)
+        if not re.fullmatch(r"codexmeter-[0-9a-f]{12}", normalized_device_id):
+            raise BleIdentityError("BLE identity device id has an invalid format")
+        if not re.fullmatch(r"[0-9A-F]{6}", normalized_short_id):
+            raise BleIdentityError("BLE identity short id has an invalid format")
+        device_short_id = normalized_device_id.removeprefix("codexmeter-")[:6].upper()
+        if device_short_id != normalized_short_id:
+            raise BleIdentityError("BLE identity device id does not match its short id")
+        if normalized_name != f"{DEVICE_NAME}-{normalized_short_id}":
+            raise BleIdentityError("BLE identity name does not match its short id")
+        return cls(normalized_device_id, normalized_short_id, normalized_name)
 
 
 class BleAckTracker:
@@ -75,6 +115,9 @@ class BleState:
     last_activity: Payload | None = None
     last_payload: Payload | None = None
     connect_control: Payload | None = None
+    desired_control: Payload | None = None
+    pending_alert: Payload | None = None
+    observed_device_id: str | None = None
     connected: bool = False
     last_connected_at: float | None = None
     last_disconnected_at: float | None = None
@@ -101,6 +144,8 @@ class BleState:
             "consecutive_failures": self.consecutive_failures,
             "last_error": self.last_error,
             "last_payload": self.last_payload.kind if self.last_payload else None,
+            "pending_alert": self.pending_alert.data.get("id") if self.pending_alert else None,
+            "observed_device_id": self.observed_device_id,
         }
 
 
@@ -225,6 +270,9 @@ class BleTransport:
         queue: "asyncio.Queue[Payload]",
         state: BleState,
         stop_event: asyncio.Event,
+        *,
+        require_identity: bool = False,
+        identity_validator: Callable[[BleIdentity], None] | None = None,
     ) -> bool:
         from bleak import BleakClient
         from bleak.exc import BleakError
@@ -240,6 +288,11 @@ class BleTransport:
         used_successfully = False
         async with BleakClient(target) as client:
             log.info("Connected to %s", display)
+            if require_identity:
+                identity = await self._read_identity(client)
+                if identity_validator is not None:
+                    identity_validator(identity)
+                state.observed_device_id = identity.device_id
             ack_tracker: BleAckTracker | None = BleAckTracker()
             try:
                 await self._start_notify(
@@ -261,9 +314,12 @@ class BleTransport:
             state.last_error = None
 
             try:
-                if state.connect_control is not None:
+                reconnect_control = state.desired_control or state.connect_control
+                if reconnect_control is not None and self._should_write_payload(
+                    reconnect_control, state
+                ):
                     await self._write_payload(
-                        client, state.connect_control, ack_tracker, state
+                        client, reconnect_control, ack_tracker, state
                     )
                     used_successfully = True
                 if state.last_usage is not None:
@@ -274,6 +330,12 @@ class BleTransport:
                 if state.last_activity is not None:
                     await self._write_payload(
                         client, state.last_activity, ack_tracker, state
+                    )
+                    used_successfully = True
+                if state.pending_alert is not None:
+                    pending_alert = state.pending_alert
+                    await self._write_reliably(
+                        client, pending_alert, ack_tracker, state
                     )
                     used_successfully = True
 
@@ -292,8 +354,23 @@ class BleTransport:
                         task.cancel()
                     await asyncio.gather(*pending, return_exceptions=True)
 
+                    payload = payload_task.result() if payload_task in done else None
+                    if payload is not None and payload.kind == "alert":
+                        state.pending_alert = payload
+
                     if stop_task in done:
                         break
+                    if not client.is_connected:
+                        break
+                    if payload is not None:
+                        if not self._should_write_payload(payload, state):
+                            log.info("Skipped stale BLE payload %s", payload.kind)
+                            if state.pending_alert is payload:
+                                state.pending_alert = None
+                            continue
+                        await self._write_reliably(client, payload, ack_tracker, state)
+                        used_successfully = True
+                        continue
                     if refresh_task in done and refresh_requested.is_set():
                         refresh_requested.clear()
                         if state.last_usage is not None:
@@ -301,14 +378,6 @@ class BleTransport:
                                 client, state.last_usage, ack_tracker, state
                             )
                             used_successfully = True
-                        continue
-                    if payload_task in done:
-                        payload = payload_task.result()
-                        if not self._should_write_payload(payload, state):
-                            log.info("Skipped stale BLE payload %s", payload.kind)
-                            continue
-                        await self._write_payload(client, payload, ack_tracker, state)
-                        used_successfully = True
                         continue
                     if health_task in done:
                         heartbeat = state.last_usage or state.last_activity
@@ -329,8 +398,30 @@ class BleTransport:
         queue: "asyncio.Queue[Payload]",
         state: BleState,
         stop_event: asyncio.Event,
+        *,
+        require_identity: bool = False,
+        identity_validator: Callable[[BleIdentity], None] | None = None,
     ) -> bool:
-        return await self._connect_and_write(target, queue, state, stop_event)
+        return await self._connect_and_write(
+            target,
+            queue,
+            state,
+            stop_event,
+            require_identity=require_identity,
+            identity_validator=identity_validator,
+        )
+
+    async def _read_identity(self, client: Any) -> BleIdentity:
+        try:
+            raw = await asyncio.wait_for(
+                client.read_gatt_char(IDENTITY_CHAR_UUID),
+                timeout=self.notify_timeout_sec,
+            )
+        except asyncio.TimeoutError as exc:
+            raise BleIdentityError("BLE identity read timed out") from exc
+        except Exception as exc:
+            raise BleIdentityError("BLE identity characteristic unavailable") from exc
+        return BleIdentity.from_bytes(raw)
 
     async def _write_payload(
         self,
@@ -377,6 +468,19 @@ class BleTransport:
             state.consecutive_failures = 0
             state.last_error = None
 
+    async def _write_reliably(
+        self,
+        client: Any,
+        payload: Payload,
+        ack_tracker: BleAckTracker,
+        state: BleState,
+    ) -> None:
+        if payload.kind == "alert":
+            state.pending_alert = payload
+        await self._write_payload(client, payload, ack_tracker, state)
+        if state.pending_alert is payload:
+            state.pending_alert = None
+
     async def _start_notify(self, client: Any, uuid: str, callback: Any) -> None:
         try:
             await asyncio.wait_for(
@@ -395,6 +499,17 @@ class BleTransport:
             state.last_usage = payload
         elif payload.kind == "activity":
             state.last_activity = payload
+        elif payload.kind == "control":
+            state.desired_control = payload
+
+    @staticmethod
+    def remember_desired(payload: Payload, state: BleState) -> None:
+        if payload.kind == "usage":
+            state.last_usage = payload
+        elif payload.kind == "activity":
+            state.last_activity = payload
+        elif payload.kind == "control":
+            state.desired_control = payload
 
     @staticmethod
     def _require_ack(payload: Payload, text: str) -> None:

@@ -148,7 +148,9 @@ Mac 端只会自动连接已登记设备。首次使用一台新设备时：
 launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 ```
 
-`alias` 只是本机显示标签，不参与连接判断。daemon 运行后会持续扫描附近 CodexMeter；当你带 Mac 从公司回家，办公室设备会离线，家里的已登记设备被扫描到后会由独立 worker 连接。每台设备有独立队列、ACK、重连 backoff 和健康状态；单台设备假活或断电不会阻塞其他设备。
+`alias` 只是本机显示标签，不参与连接判断。daemon 运行后会持续扫描附近 CodexMeter；当你带 Mac 从公司回家，办公室设备会离线，家里的已登记设备被扫描到后会由独立 worker 连接。每台设备有独立队列、ACK、重连 backoff 和健康状态；单台设备假活或断电不会阻塞其他设备。首次连接后，daemon 会读取 identity characteristic，把短 ID 登记记录原子升级为完整芯片 ID；后续连接必须通过完整 identity 校验。
+
+状态类 payload 会保存每台设备的最新期望值并在重连后恢复。告警在收到设备 ACK 前保持为 in-flight；ACK 丢失时会重试，固件按告警 ID 去重，因此不会因为瞬时断连而漏提醒或重复闪屏。
 
 查看登记设备：
 
@@ -160,7 +162,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 - 先红、黄、绿全屏闪动。
 - 闪动结束后显示“任务完成！”。
-- 下方显示 Codex 任务摘要，正文使用 LittleFS 中的 TTF 字体经 LVGL TinyTTF 本地渲染。
+- 下方最多显示四行 Codex 任务摘要，超出部分在第四行省略；正文使用 LittleFS 中的 TTF 字体经 LVGL TinyTTF 本地渲染。
 - 摘要在 macOS 端只移除控制字符并保留 Unicode 文本，中文覆盖主要由设备端 TTF 字体负责。
 - 默认在文字出现后停留 8 秒；提醒显示时关屏会同时关闭当前提醒。
 
@@ -184,6 +186,18 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 ```bash
 ./flash-mac.sh waveshare_amoled_216 /dev/cu.usbmodem211201
+```
+
+同时烧录所有已通过 identity 校验的 CodexMeter：
+
+```bash
+./flash-mac.sh --all
+```
+
+自动发现和 `--all` 不会选择其他 USB 串口。只有设备停在 bootloader、无法回应 identity 查询的恢复场景，才应显式指定端口并追加 `--force`：
+
+```bash
+./flash-mac.sh waveshare_amoled_216 /dev/cu.usbmodem211201 --force
 ```
 
 只编译不烧录：
@@ -302,6 +316,8 @@ LOG 12 3401 INFO BLE connected xx:xx:xx:xx:xx:xx
 LOG 13 3550 INFO usage h5=72 d7=64 status=ok
 LOGS_END
 ```
+
+macOS daemon 日志使用轮转文件，当前文件和一个备份合计最多约 100MB。
 
 ## BLE 协议
 

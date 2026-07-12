@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codexmeter"
-version = "2.0.0"
+dynamic = ["version"]
 description = "Mac daemon and ESP32 firmware bridge for Codex subscription limits."
 requires-python = ">=3.11"
 dependencies = [
-  "bleak>=0.22.0",
+  "bleak==3.0.2",
 ]
 
 [project.scripts]
@@ -17,3 +17,6 @@ codexmeterctl = "codexmeter.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["codexmeter*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "codexmeter.__version__"}

@@ -1,7 +1,8 @@
 import asyncio
 
-from codexmeter.device_registry import config_from_short_id
-from codexmeter.multi_ble import DeviceManager
+from codexmeter.ble import BleIdentity, BleIdentityError, BleTransport
+from codexmeter.device_registry import DeviceConfig, config_from_short_id
+from codexmeter.multi_ble import DeviceManager, DeviceSlot, DeviceWorker, DiscoveryService
 from codexmeter.payloads import Payload, build_activity_payload, build_screen_control_payload
 from codexmeter.queueing import put_latest
 
@@ -55,3 +56,49 @@ def test_put_latest_prefers_dropping_replaceable_payload_before_alert():
         assert [item.data["id"] for item in items] == ["a", "b"]
 
     asyncio.run(scenario())
+
+
+def test_device_worker_rejects_identity_with_wrong_short_id():
+    config = config_from_short_id("A3F91C")
+    worker = DeviceWorker(
+        DeviceSlot(config), DiscoveryService(), BleTransport()
+    )
+
+    try:
+        worker._validate_identity(
+            BleIdentity(
+                "codexmeter-9b20d4858428",
+                "9B20D4",
+                "CodexMeter-9B20D4",
+            )
+        )
+    except BleIdentityError:
+        return
+    raise AssertionError("expected mismatched device identity")
+
+
+def test_device_worker_binds_short_config_to_full_identity():
+    config = config_from_short_id("A3F91C", alias="Home")
+
+    def bind(existing, identity):
+        return DeviceConfig(
+            device_id=identity.device_id,
+            short_id=identity.short_id,
+            alias=existing.alias,
+            name=identity.name,
+        )
+
+    slot = DeviceSlot(config)
+    worker = DeviceWorker(
+        slot, DiscoveryService(), BleTransport(), identity_observer=bind
+    )
+    worker._validate_identity(
+        BleIdentity(
+            "codexmeter-a3f91c858428",
+            "A3F91C",
+            "CodexMeter-A3F91C",
+        )
+    )
+
+    assert slot.config.device_id == "codexmeter-a3f91c858428"
+    assert slot.config.alias == "Home"

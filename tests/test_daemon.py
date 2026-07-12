@@ -1,7 +1,10 @@
 import asyncio
 
 from codexmeter.daemon import (
+    DaemonAlreadyRunning,
+    DaemonLock,
     build_stale_usage_payload,
+    build_file_handler,
     load_cached_usage_snapshot,
     put_latest,
     save_cached_usage_snapshot,
@@ -104,3 +107,23 @@ def test_usage_cache_ignores_suspicious_empty_d7_snapshot(tmp_path):
     save_cached_usage_snapshot(snapshot, path)
 
     assert load_cached_usage_snapshot(path) is None
+
+
+def test_daemon_lock_rejects_second_instance(tmp_path):
+    path = tmp_path / "daemon.lock"
+    with DaemonLock(path):
+        try:
+            with DaemonLock(path):
+                pass
+        except DaemonAlreadyRunning:
+            return
+    raise AssertionError("expected second daemon lock to fail")
+
+
+def test_log_handler_keeps_current_and_backup_within_total_limit(tmp_path):
+    handler = build_file_handler(tmp_path / "daemon.log", total_bytes=100_000)
+    try:
+        assert handler.maxBytes == 50_000
+        assert handler.backupCount == 1
+    finally:
+        handler.close()
