@@ -11,6 +11,12 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量与任务完
 
 当前稳定版本为 [`v2.0.1`](CHANGELOG.md)。
 
+<p align="center">
+  <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
+</p>
+
+<p align="center"><em>CodexMeter 实物运行效果</em></p>
+
 | 用量主页 | 任务完成提醒 |
 | --- | --- |
 | ![CodexMeter 用量主页](docs/assets/dashboard.png) | ![CodexMeter 四行任务完成摘要](docs/assets/task-complete.png) |

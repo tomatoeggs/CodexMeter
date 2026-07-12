@@ -3,6 +3,7 @@
 ## 未发布
 
 - 完善公开仓库文档、快速开始、项目截图、安全说明和 Python 包元数据，并以 MIT License 开源。
+- README 增加 CodexMeter 实物运行照片。
 
 ## v2.0.1
 
