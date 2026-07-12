@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "device_log.h"
+#include "identity.h"
 
 #include <NimBLEDevice.h>
 
@@ -9,6 +10,7 @@
 #define RX_CHAR_UUID "4c41555a-4465-7669-6365-000000000002"
 #define TX_CHAR_UUID "4c41555a-4465-7669-6365-000000000003"
 #define REQ_CHAR_UUID "4c41555a-4465-7669-6365-000000000004"
+#define IDENTITY_CHAR_UUID "4c41555a-4465-7669-6365-000000000005"
 #define RX_BUF_SIZE 512
 #define RX_QUEUE_SIZE 6
 
@@ -29,9 +31,9 @@ static void start_advertising() {
   adv->reset();
   adv->addServiceUUID(SERVICE_UUID);
   adv->enableScanResponse(true);
-  adv->setName(CODEXMETER_DEVICE_NAME);
+  adv->setName(identity_ble_name());
   adv->start();
-  device_logf("INFO", "BLE advertising");
+  device_logf("INFO", "BLE advertising %s", identity_ble_name());
 }
 
 class ServerCallbacks : public NimBLEServerCallbacks {
@@ -72,7 +74,8 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 void ble_service_init() {
-  NimBLEDevice::init(CODEXMETER_DEVICE_NAME);
+  identity_init();
+  NimBLEDevice::init(identity_ble_name());
   server = NimBLEDevice::createServer();
   static ServerCallbacks server_callbacks;
   server->setCallbacks(&server_callbacks);
@@ -86,6 +89,9 @@ void ble_service_init() {
   tx_char = svc->createCharacteristic(
       TX_CHAR_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   req_char = svc->createCharacteristic(REQ_CHAR_UUID, NIMBLE_PROPERTY::NOTIFY);
+  NimBLECharacteristic* identity_char =
+      svc->createCharacteristic(IDENTITY_CHAR_UUID, NIMBLE_PROPERTY::READ);
+  identity_char->setValue(identity_json());
 
   server->start();
   start_advertising();

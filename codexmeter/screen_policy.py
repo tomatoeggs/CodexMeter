@@ -122,12 +122,13 @@ def parse_ioreg_lock_state(text: str) -> bool | None:
 
 async def screen_policy_loop(
     sink: PayloadSink,
-    ble_state: BleState,
+    ble_state: BleState | None,
     stop_event: asyncio.Event,
     *,
     timeout_sec: float = AUTO_SCREEN_TIMEOUT_SEC,
     poll_interval_sec: float = LOCK_POLL_INTERVAL_SEC,
     detector: MacLockDetector | None = None,
+    connect_control_setter: Callable[[Payload | None], None] | None = None,
 ) -> None:
     detector = detector or MacLockDetector()
     policy = LockScreenPolicy(timeout_sec=timeout_sec)
@@ -142,7 +143,10 @@ async def screen_policy_loop(
                 now=time.monotonic(),
                 epoch_now=int(time.time()),
             )
-            ble_state.connect_control = result.connect_control
+            if ble_state is not None:
+                ble_state.connect_control = result.connect_control
+            if connect_control_setter is not None:
+                connect_control_setter(result.connect_control)
             for payload in result.payloads:
                 await sink(payload)
                 log.info(

@@ -2,6 +2,14 @@
 
 ## 未发布
 
+## v2.0.0
+
+- 新增多 CodexMeter 支持：daemon 可同时驱动多台已登记设备，每台设备拥有独立 BLE 队列、ACK、健康状态和重连 backoff。
+- 新增设备登记与发现命令：`codexmeterctl devices scan/list/adopt/rename/enable/disable`。
+- 固件新增稳定设备身份，BLE 广播名改为 `CodexMeter-<short_id>`，并提供 BLE/USB identity 查询。
+- USB 日志和截图工具支持 `--device` 与 `--list`，多设备连接时避免误选设备。
+- `flash-mac.sh` 支持多串口保护和 `--all` 批量烧录。
+
 - 新增 AMOLED 防烧屏像素漂移：正常页每 10 分钟在 2px 范围内整体轻微移动，任务完成提醒和亮度浮层保持固定。
 - 强化 macOS 端 BLE 健康检查：TX ACK notify 订阅失败时不再降级为“写入成功”，并增加 45 秒应用层 heartbeat，避免 CoreBluetooth 假活导致设备端持续 `stale`。
 - Codex 用量读取失败时，会用上一次成功数据发送 `stale` heartbeat，保持 BLE 链路探活并明确区分数据源异常和蓝牙异常。

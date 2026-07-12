@@ -10,7 +10,13 @@ import time
 import zlib
 from pathlib import Path
 
-from serial_device import SerialSession, SerialToolError, detect_port, port_score
+from serial_device import (
+    SerialSession,
+    SerialToolError,
+    discover_serial_devices,
+    port_score,
+    resolve_port,
+)
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 DEFAULT_LINE_TIMEOUT_SECONDS = 8.0
@@ -104,6 +110,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("output", nargs="?", default="screenshot.png", help="PNG output path")
     parser.add_argument("port", nargs="?", help="USB serial port, e.g. /dev/cu.usbmodem211201")
+    parser.add_argument("--device", help="CodexMeter short id, device id, name, or port basename")
+    parser.add_argument("--list", action="store_true", help="list identified CodexMeter serial devices")
     parser.add_argument(
         "--line-timeout",
         type=float,
@@ -122,7 +130,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        port = args.port or detect_port()
+        if args.list:
+            for identity in discover_serial_devices(timeout=args.line_timeout):
+                print(
+                    f"{identity.short_id or '?'} {identity.port} "
+                    f"{identity.device_id or '-'} {identity.name or '-'}"
+                )
+            return 0
+        port = resolve_port(args.port, device=args.device, timeout=args.line_timeout)
         width, height, data = capture_rgb565le(
             port,
             line_timeout=args.line_timeout,

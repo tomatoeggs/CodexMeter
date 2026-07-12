@@ -323,6 +323,15 @@ class BleTransport:
         log.info("BLE disconnected from %s", display)
         return used_successfully
 
+    async def connect_and_write(
+        self,
+        target: Any,
+        queue: "asyncio.Queue[Payload]",
+        state: BleState,
+        stop_event: asyncio.Event,
+    ) -> bool:
+        return await self._connect_and_write(target, queue, state, stop_event)
+
     async def _write_payload(
         self,
         client: Any,

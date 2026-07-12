@@ -6,7 +6,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from serial_device import SerialSession, SerialToolError, detect_port
+from serial_device import (
+    SerialSession,
+    SerialToolError,
+    discover_serial_devices,
+    resolve_port,
+)
 
 DEFAULT_TIMEOUT_SECONDS = 6.0
 
@@ -51,6 +56,8 @@ def follow_logs(port: str, *, timeout: float = 3600.0) -> None:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Read CodexMeter ESP32 logs over USB serial.")
     parser.add_argument("port", nargs="?", help="USB serial port, e.g. /dev/cu.usbmodem211201")
+    parser.add_argument("--device", help="CodexMeter short id, device id, name, or port basename")
+    parser.add_argument("--list", action="store_true", help="list identified CodexMeter serial devices")
     parser.add_argument("-n", "--lines", type=int, default=0, help="limit queried log lines")
     parser.add_argument("--clear", action="store_true", help="clear the device log buffer")
     parser.add_argument("--follow", action="store_true", help="print live serial log lines")
@@ -66,7 +73,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        port = args.port or detect_port()
+        if args.list:
+            for identity in discover_serial_devices(timeout=args.timeout):
+                print(
+                    f"{identity.short_id or '?'} {identity.port} "
+                    f"{identity.device_id or '-'} {identity.name or '-'}"
+                )
+            return 0
+        port = resolve_port(args.port, device=args.device, timeout=args.timeout)
         if args.clear:
             clear_logs(port, timeout=args.timeout)
             print(f"Cleared device logs on {port}")

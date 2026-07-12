@@ -19,8 +19,61 @@ fi
 
 export PLATFORMIO_CORE_DIR="${PLATFORMIO_CORE_DIR:-$ROOT/.platformio}"
 
+find_ports() {
+  shopt -s nullglob
+  local ports=(/dev/cu.usbmodem* /dev/cu.usbserial*)
+  local port
+  for port in "${ports[@]}"; do
+    if [[ "$port" != *000000000000* ]]; then
+      echo "$port"
+    fi
+  done
+  for port in "${ports[@]}"; do
+    if [[ "$port" == *000000000000* ]]; then
+      echo "$port"
+    fi
+  done
+}
+
+upload_one() {
+  local port="$1"
+  echo "Uploading LittleFS data partition to $port..."
+  "$PIO_BIN" run -d "$ROOT/firmware" -e "$ENV_NAME" -t uploadfs --upload-port "$port"
+  echo "Uploading firmware to $port..."
+  "$PIO_BIN" run -d "$ROOT/firmware" -e "$ENV_NAME" -t upload --upload-port "$port"
+}
+
+if [[ "$PORT" == "--all" ]]; then
+  PORTS=()
+  while IFS= read -r port; do
+    PORTS+=("$port")
+  done < <(find_ports)
+  if [[ "${#PORTS[@]}" -eq 0 ]]; then
+    echo "No serial port found." >&2
+    exit 1
+  fi
+  FAILED=0
+  for port in "${PORTS[@]}"; do
+    if ! upload_one "$port"; then
+      echo "Upload failed on $port" >&2
+      FAILED=1
+    fi
+  done
+  exit "$FAILED"
+fi
+
 if [[ -z "$PORT" ]]; then
-  PORT="$(ls /dev/cu.usbmodem* /dev/cu.usbserial* 2>/dev/null | head -n 1 || true)"
+  PORTS=()
+  while IFS= read -r port; do
+    PORTS+=("$port")
+  done < <(find_ports)
+  if [[ "${#PORTS[@]}" -eq 1 ]]; then
+    PORT="${PORTS[0]}"
+  elif [[ "${#PORTS[@]}" -gt 1 ]]; then
+    echo "Multiple serial ports found. Pass one explicitly or use --all:" >&2
+    printf '  %s\n' "${PORTS[@]}" >&2
+    exit 1
+  fi
 fi
 
 if [[ -z "$PORT" ]]; then
@@ -28,7 +81,4 @@ if [[ -z "$PORT" ]]; then
   exit 1
 fi
 
-echo "Uploading LittleFS data partition to $PORT..."
-"$PIO_BIN" run -d "$ROOT/firmware" -e "$ENV_NAME" -t uploadfs --upload-port "$PORT"
-echo "Uploading firmware to $PORT..."
-"$PIO_BIN" run -d "$ROOT/firmware" -e "$ENV_NAME" -t upload --upload-port "$PORT"
+upload_one "$PORT"

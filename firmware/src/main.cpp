@@ -8,6 +8,7 @@
 #include "config.h"
 #include "device_log.h"
 #include "display_rotation.h"
+#include "identity.h"
 #include "imu.h"
 #include "model.h"
 #include "power.h"
@@ -420,6 +421,9 @@ static void handle_serial() {
         set_brightness_percent(atoi(buf + 11), "serial");
       } else if (strcmp(buf, "imu") == 0) {
         imu_print_status(Serial);
+      } else if (strcmp(buf, "identity") == 0) {
+        Serial.print("IDENTITY ");
+        Serial.println(identity_json());
       } else if (strcmp(buf, "heap") == 0) {
         device_log_heap("serial");
       } else if (strcmp(buf, "lvheap") == 0) {
@@ -517,8 +521,10 @@ static void handle_ble_screen_policy() {
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println("{\"ready\":true,\"device\":\"CodexMeter\"}");
-  device_logf("INFO", "device ready");
+  identity_init();
+  Serial.printf("{\"ready\":true,\"device\":\"CodexMeter\",\"identity\":%s}\n",
+                identity_json());
+  device_logf("INFO", "device ready %s", identity_ble_name());
   esp_reset_reason_t reset_reason = esp_reset_reason();
   device_logf(
       "INFO", "reset reason=%d %s", (int)reset_reason,

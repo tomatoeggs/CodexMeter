@@ -9,9 +9,10 @@ import logging
 import signal
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from .ble import BleState, BleTransport
+from .device_registry import DeviceRegistry
 from .events import EventServer
 from .limits import (
     UsageSnapshot,
@@ -19,8 +20,10 @@ from .limits import (
     UsageSnapshotStabilizer,
     is_suspicious_initial_snapshot,
 )
+from .multi_ble import DeviceManager
 from .payloads import Payload, build_activity_payload, build_usage_payload
 from .provider import CodexUsageProvider
+from .queueing import put_latest
 from .screen_policy import screen_policy_loop
 from .settings import (
     APP_DIR,
@@ -34,13 +37,13 @@ from .settings import (
     POLL_INTERVAL_SEC,
 )
 
-COALESCED_PAYLOAD_KINDS = {"usage", "activity", "control"}
 USAGE_CACHE_FILE = APP_DIR / "last_usage_snapshot.json"
+PayloadSink = Callable[[Payload], Awaitable[None]]
 
 
 async def quota_loop(
     provider: CodexUsageProvider,
-    queue: "asyncio.Queue[Payload]",
+    sink: PayloadSink,
     stop_event: asyncio.Event,
     poll_interval: int,
 ) -> None:
@@ -75,7 +78,7 @@ async def quota_loop(
                 snapshot = decision.snapshot
                 payload = build_usage_payload(snapshot)
                 last_usage_payload = payload
-                await put_latest(queue, payload)
+                await sink(payload)
                 log_usage_decision(raw_snapshot, decision)
                 if decision.accepted:
                     save_cached_usage_snapshot(snapshot)
@@ -85,7 +88,7 @@ async def quota_loop(
             logging.exception("Failed to fetch Codex usage")
             if last_usage_payload is not None:
                 stale_payload = build_stale_usage_payload(last_usage_payload)
-                await put_latest(queue, stale_payload)
+                await sink(stale_payload)
                 logging.info("Queued stale usage heartbeat after fetch failure")
 
         try:
@@ -202,26 +205,7 @@ def build_stale_usage_payload(payload: Payload, now: int | None = None) -> Paylo
     return Payload("usage", data)
 
 
-async def put_latest(queue: "asyncio.Queue[Payload]", payload: Payload) -> None:
-    if payload.kind in COALESCED_PAYLOAD_KINDS:
-        kept: list[Payload] = []
-        while True:
-            try:
-                existing = queue.get_nowait()
-            except asyncio.QueueEmpty:
-                break
-            if existing.kind != payload.kind:
-                kept.append(existing)
-        for existing in kept:
-            await queue.put(existing)
-
-    if queue.full():
-        _ = queue.get_nowait()
-    await queue.put(payload)
-
-
 async def run_daemon(args: argparse.Namespace) -> None:
-    queue: asyncio.Queue[Payload] = asyncio.Queue(maxsize=32)
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
@@ -235,46 +219,53 @@ async def run_daemon(args: argparse.Namespace) -> None:
         except NotImplementedError:
             signal.signal(sig, lambda *_: stop())
 
-    async def sink(payload: Payload) -> None:
-        await put_latest(queue, payload)
-
     provider = CodexUsageProvider(
         codex_bin=args.codex_bin,
         timeout_sec=args.timeout,
         refresh_token=args.refresh_token,
     )
-    ble_state = BleState()
-    ble_state.last_activity = build_activity_payload(0)
-    transport = BleTransport(
-        device_name=args.device_name,
+    try:
+        registry = DeviceRegistry.load()
+    except ValueError:
+        logging.exception("Failed to load device registry")
+        registry = DeviceRegistry()
+    manager = DeviceManager(
+        registry.enabled_devices(),
         scan_timeout_sec=args.scan_timeout,
+        scan_interval_sec=args.scan_interval,
         write_timeout_sec=args.ble_write_timeout,
         ack_timeout_sec=args.ble_ack_timeout,
         notify_timeout_sec=args.ble_notify_timeout,
         healthcheck_interval_sec=args.ble_healthcheck_interval,
+        fallback_device_name=args.device_name,
     )
+    await manager.broadcast(build_activity_payload(0))
+
+    async def sink(payload: Payload) -> None:
+        await manager.broadcast(payload)
 
     def status_provider() -> dict[str, object]:
-        return {"ble": ble_state.status(queue_depth=queue.qsize())}
+        return {"ble": manager.status()}
 
     event_server = EventServer(sink, status_provider=status_provider)
 
     tasks = [
         asyncio.create_task(event_server.run(stop_event), name="events"),
         asyncio.create_task(
-            quota_loop(provider, queue, stop_event, args.poll_interval), name="quota"
+            quota_loop(provider, sink, stop_event, args.poll_interval), name="quota"
         ),
         asyncio.create_task(
             screen_policy_loop(
                 sink,
-                ble_state,
+                None,
                 stop_event,
                 timeout_sec=args.auto_screen_timeout,
                 poll_interval_sec=args.lock_poll_interval,
+                connect_control_setter=manager.set_connect_control,
             ),
             name="screen_policy",
         ),
-        asyncio.create_task(transport.run(queue, ble_state, stop_event), name="ble"),
+        asyncio.create_task(manager.run(stop_event), name="ble"),
     ]
 
     await stop_event.wait()
@@ -301,6 +292,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=15.0)
     parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL_SEC)
     parser.add_argument("--scan-timeout", type=float, default=8.0)
+    parser.add_argument("--scan-interval", type=float, default=8.0)
     parser.add_argument("--ble-write-timeout", type=float, default=BLE_WRITE_TIMEOUT_SEC)
     parser.add_argument("--ble-ack-timeout", type=float, default=BLE_ACK_TIMEOUT_SEC)
     parser.add_argument("--ble-notify-timeout", type=float, default=BLE_NOTIFY_TIMEOUT_SEC)

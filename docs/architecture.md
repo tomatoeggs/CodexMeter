@@ -15,7 +15,9 @@
 - `codexmeter.provider`：负责调用 Codex App Server 并转换为订阅用量快照。
 - `codexmeter.limits`：负责限额桶归一化，当前默认只读取 `codex` 桶，将 300 分钟映射为 `5h`，10080 分钟映射为 `7d`。
 - `codexmeter.payloads`：负责 BLE JSON payload 生成、摘要清洗、设备字库字符过滤和 512 bytes 长度约束。
-- `codexmeter.ble`：负责发现、连接和写入 `CodexMeter` BLE 外设；macOS 上会优先尝试找回已连接的 CoreBluetooth 外设。
+- `codexmeter.device_registry`：负责读取和维护 `~/.codexmeter/devices.json`，用稳定短 ID 管理已登记设备。
+- `codexmeter.multi_ble`：负责持续扫描附近 CodexMeter、为每台已登记设备创建独立 worker，并把上游 payload fan-out 到每台设备队列。
+- `codexmeter.ble`：负责单个 BLE 外设会话的连接、notify 订阅、写入、ACK 校验和健康检查。
 - `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hooks 与 `codexmeterctl` 使用；同时维护运行中任务集合。
 - `codexmeter.screen_policy`：负责 macOS 锁屏状态轮询、自动亮屏/关屏状态机和 BLE 重连亮屏策略。
 - `hooks/codexmeter_start_hook.py`：负责接收 Codex `UserPromptSubmit` hook 输入，通知 daemon 有任务开始运行。
@@ -38,7 +40,7 @@
 
 1. daemon 每 60 秒拉取 Codex App Server 限额。
 2. daemon 将 `codex` 限额归一化为 `UsageSnapshot`，生成 `usage` payload 并放入发送队列。
-3. BLE transport 发现或找回 `CodexMeter` 外设，连接后写入 RX characteristic。
+3. BLE discovery 按 service UUID 和 `CodexMeter-<short_id>` 广播名持续发现附近设备；每台已登记设备由独立 worker 连接后写入 RX characteristic。
 4. 固件解析 `usage`，更新 5h/7d 剩余百分比，并用 `t` 加设备本地经过时间计算重置倒计时：
    - 5h 显示为 `HH:MM 后重置`
    - 7d 显示为 `xd 后重置`
@@ -147,7 +149,7 @@
 设备名：
 
 ```text
-CodexMeter
+CodexMeter-<short_id>
 ```
 
 GATT UUID：
@@ -156,6 +158,7 @@ GATT UUID：
 - RX write：`4c41555a-4465-7669-6365-000000000002`
 - TX notify：`4c41555a-4465-7669-6365-000000000003`
 - refresh notify：`4c41555a-4465-7669-6365-000000000004`
+- identity read：`4c41555a-4465-7669-6365-000000000005`
 
 用量 payload：
 
@@ -208,10 +211,12 @@ GATT UUID：
 - 如果 `codex` 不在默认 `PATH`，安装时可用 `CODEX_BIN=/path/to/codex ./install-mac.sh` 指定。
 - daemon 主日志写入 `~/.codexmeter/codexmeter.log`，LaunchAgent stdout/stderr 分别写入 `~/.codexmeter/codexmeter.out.log` 和 `~/.codexmeter/codexmeter.err.log`。
 - `codexmeterctl` 默认通过 `~/.codexmeter/events.sock` 与 daemon 通信。
+- `codexmeterctl devices scan/adopt/list/rename/enable/disable` 维护本机设备登记表；alias 只用于展示，不参与 BLE 匹配。
 
 ## 关键约束
 
 - BLE payload 控制在 512 bytes 内。
+- 多设备场景下，每台设备拥有独立 BLE 队列、ACK 状态、失败计数和重连 backoff；任一设备异常不阻塞其他设备。
 - alert 正文在 macOS 端先限制为 210 bytes，再由整体 payload 编码器做最终兜底裁剪。
 - 固件 alert 正文缓冲区为 240 bytes，标题缓冲区为 48 bytes。
 - 固件 BLE RX 队列可缓存 6 个 payload，避免连续写入时后一个 payload 覆盖前一个。

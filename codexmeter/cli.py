@@ -8,7 +8,13 @@ import json
 import sys
 import time
 
+from .device_registry import (
+    DeviceRegistry,
+    config_from_short_id,
+    normalize_short_id,
+)
 from .events import send_event
+from .multi_ble import scan_codexmeter_devices
 from .payloads import build_usage_payload
 from .provider import CodexUsageProvider
 
@@ -71,6 +77,88 @@ async def run_screen(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") else 1
 
 
+async def run_devices_scan(args: argparse.Namespace) -> int:
+    devices = await scan_codexmeter_devices(timeout=args.timeout)
+    print(
+        json.dumps(
+            [
+                {
+                    "name": device.name,
+                    "short_id": device.short_id,
+                    "address": device.address,
+                }
+                for device in devices
+            ],
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+async def run_devices_list(_args: argparse.Namespace) -> int:
+    registry = DeviceRegistry.load()
+    print(
+        json.dumps(
+            [device.to_json() for device in registry.devices],
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+async def run_devices_adopt(args: argparse.Namespace) -> int:
+    registry = DeviceRegistry.load()
+    device = config_from_short_id(args.short_id, alias=args.alias)
+    registry.upsert(device)
+    registry.save()
+    print(json.dumps(device.to_json(), ensure_ascii=False, indent=2))
+    return 0
+
+
+async def run_devices_rename(args: argparse.Namespace) -> int:
+    registry = DeviceRegistry.load()
+    device = registry.find(args.device)
+    if device is None:
+        print(f"Error: unknown device {args.device}", file=sys.stderr)
+        return 1
+    updated = type(device)(
+        device_id=device.device_id,
+        short_id=device.short_id,
+        alias=args.alias,
+        enabled=device.enabled,
+        name=device.name,
+        macos_uuid=device.macos_uuid,
+        legacy=device.legacy,
+    )
+    registry.upsert(updated)
+    registry.save()
+    print(json.dumps(updated.to_json(), ensure_ascii=False, indent=2))
+    return 0
+
+
+async def run_devices_enabled(args: argparse.Namespace) -> int:
+    registry = DeviceRegistry.load()
+    device = registry.find(args.device)
+    if device is None:
+        print(f"Error: unknown device {args.device}", file=sys.stderr)
+        return 1
+    updated = type(device)(
+        device_id=device.device_id,
+        short_id=device.short_id,
+        alias=device.alias,
+        enabled=args.enabled,
+        name=device.name,
+        macos_uuid=device.macos_uuid,
+        legacy=device.legacy,
+    )
+    registry.upsert(updated)
+    registry.save()
+    print(json.dumps(updated.to_json(), ensure_ascii=False, indent=2))
+    return 0
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CodexMeter helper CLI.")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -105,6 +193,34 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     screen_off.add_argument("--reason", default="manual")
     screen_off.set_defaults(func=run_screen, on=False)
 
+    devices = sub.add_parser("devices", help="Manage registered CodexMeter devices.")
+    device_sub = devices.add_subparsers(dest="device_cmd", required=True)
+
+    devices_scan = device_sub.add_parser("scan", help="Scan nearby CodexMeter BLE devices.")
+    devices_scan.add_argument("--timeout", type=float, default=4.0)
+    devices_scan.set_defaults(func=run_devices_scan)
+
+    devices_list = device_sub.add_parser("list", help="List registered devices.")
+    devices_list.set_defaults(func=run_devices_list)
+
+    devices_adopt = device_sub.add_parser("adopt", help="Register a nearby device short id.")
+    devices_adopt.add_argument("short_id", type=normalize_short_id)
+    devices_adopt.add_argument("--alias")
+    devices_adopt.set_defaults(func=run_devices_adopt)
+
+    devices_rename = device_sub.add_parser("rename", help="Set a local alias for a device.")
+    devices_rename.add_argument("device")
+    devices_rename.add_argument("alias")
+    devices_rename.set_defaults(func=run_devices_rename)
+
+    devices_enable = device_sub.add_parser("enable", help="Enable auto-connect for a device.")
+    devices_enable.add_argument("device")
+    devices_enable.set_defaults(func=run_devices_enabled, enabled=True)
+
+    devices_disable = device_sub.add_parser("disable", help="Disable auto-connect for a device.")
+    devices_disable.add_argument("device")
+    devices_disable.set_defaults(func=run_devices_enabled, enabled=False)
+
     return parser.parse_args(argv)
 
 
@@ -112,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
         return asyncio.run(args.func(args))
-    except (OSError, TimeoutError, RuntimeError) as exc:
+    except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
