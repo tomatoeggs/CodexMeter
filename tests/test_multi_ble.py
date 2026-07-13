@@ -1,8 +1,17 @@
 import asyncio
+import time
+from types import SimpleNamespace
 
 from codexmeter.ble import BleIdentity, BleIdentityError, BleTransport
 from codexmeter.device_registry import DeviceConfig, config_from_short_id
-from codexmeter.multi_ble import DeviceManager, DeviceSlot, DeviceWorker, DiscoveryService
+from codexmeter.multi_ble import (
+    DeviceManager,
+    DeviceSlot,
+    DeviceWorker,
+    DiscoveredDevice,
+    DiscoveryService,
+    scan_codexmeter_devices,
+)
 from codexmeter.payloads import Payload, build_activity_payload, build_screen_control_payload
 from codexmeter.queueing import put_latest
 
@@ -102,3 +111,126 @@ def test_device_worker_binds_short_config_to_full_identity():
 
     assert slot.config.device_id == "codexmeter-a3f91c858428"
     assert slot.config.alias == "Home"
+
+
+def test_scan_merges_connected_device_that_is_not_advertising():
+    async def scenario():
+        advertised = SimpleNamespace(address="adv-address", name="CodexMeter-A3F91C")
+        advertisement = SimpleNamespace(
+            local_name="CodexMeter-A3F91C", service_uuids=[]
+        )
+        connected = SimpleNamespace(
+            address="connected-address", name="CodexMeter-9B20D4"
+        )
+        unrelated = SimpleNamespace(address="other-address", name="Keyboard")
+
+        async def discover(**_kwargs):
+            return {advertised.address: (advertised, advertisement)}
+
+        async def connected_lookup():
+            return [connected, unrelated]
+
+        found = await scan_codexmeter_devices(
+            0.1, discover=discover, connected_lookup=connected_lookup
+        )
+        by_short_id = {device.short_id: device for device in found}
+
+        assert set(by_short_id) == {"A3F91C", "9B20D4"}
+        assert by_short_id["A3F91C"].source == "advertisement"
+        assert by_short_id["9B20D4"].source == "connected"
+
+    asyncio.run(scenario())
+
+
+def test_scan_prefers_advertisement_when_connected_lookup_returns_duplicate():
+    async def scenario():
+        advertised = SimpleNamespace(address="same-address", name="CodexMeter-A3F91C")
+        advertisement = SimpleNamespace(
+            local_name="CodexMeter-A3F91C", service_uuids=[]
+        )
+        connected = SimpleNamespace(
+            address="same-address", name="CodexMeter-A3F91C"
+        )
+
+        async def discover(**_kwargs):
+            return {advertised.address: (advertised, advertisement)}
+
+        async def connected_lookup():
+            return [connected]
+
+        found = await scan_codexmeter_devices(
+            0.1, discover=discover, connected_lookup=connected_lookup
+        )
+
+        assert len(found) == 1
+        assert found[0].source == "advertisement"
+        assert found[0].device is advertised
+
+    asyncio.run(scenario())
+
+
+def test_discovery_status_reports_connected_recovery_results():
+    async def scenario():
+        async def scanner(_timeout):
+            return [
+                DiscoveredDevice(
+                    address="connected-address",
+                    name="CodexMeter-A3F91C",
+                    short_id="A3F91C",
+                    device=object(),
+                    source="connected",
+                )
+            ]
+
+        discovery = DiscoveryService(scanner=scanner)
+        await discovery.scan_once()
+        status = discovery.status(now=time.monotonic())
+
+        assert status["last_scan_age_sec"] <= 0.1
+        assert status["last_result_count"] == 1
+        assert status["connected_result_count"] == 1
+        assert status["cached_count"] == 1
+        assert status["last_error"] is None
+        assert status["connected_lookup_error"] is None
+
+    asyncio.run(scenario())
+
+
+def test_device_worker_records_clean_disconnect_while_waiting_for_recovery():
+    async def scenario():
+        config = config_from_short_id("A3F91C")
+        slot = DeviceSlot(config)
+        discovered = DiscoveredDevice(
+            address="connected-address",
+            name="CodexMeter-A3F91C",
+            short_id="A3F91C",
+            device=object(),
+            source="connected",
+        )
+
+        class FakeDiscovery:
+            async def wait_for(self, _config, _stop_event):
+                return discovered
+
+        class FakeTransport:
+            async def connect_and_write(self, _target, _queue, state, _stop, **_kwargs):
+                state.connected = False
+                return True
+
+        worker = DeviceWorker(slot, FakeDiscovery(), FakeTransport())
+        stop_event = asyncio.Event()
+        task = asyncio.create_task(worker.run(stop_event))
+        for _ in range(20):
+            if slot.state.last_error is not None:
+                break
+            await asyncio.sleep(0)
+
+        assert slot.state.last_error == "BLE disconnected; waiting for rediscovery"
+        assert slot.state.consecutive_failures == 1
+        assert slot.state.last_discovery_source == "connected"
+        assert slot.state.last_discovered_address == "connected-address"
+
+        stop_event.set()
+        await asyncio.wait_for(task, timeout=0.2)
+
+    asyncio.run(scenario())

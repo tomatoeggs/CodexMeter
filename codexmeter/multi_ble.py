@@ -7,7 +7,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 from .ble import (
     BleAckError,
@@ -18,6 +18,7 @@ from .ble import (
     BleState,
     BleTransport,
     BleWriteTimeout,
+    MacConnectedDeviceLookup,
 )
 from .device_registry import (
     DeviceConfig,
@@ -42,6 +43,7 @@ class DiscoveredDevice:
     name: str | None
     short_id: str | None
     device: Any
+    source: str = "advertisement"
     seen_at: float = field(default_factory=time.monotonic)
 
     def status(self, now: float | None = None) -> dict[str, object]:
@@ -50,6 +52,7 @@ class DiscoveredDevice:
             "address": self.address,
             "name": self.name,
             "short_id": self.short_id,
+            "source": self.source,
             "last_seen_age_sec": round(max(0.0, now - self.seen_at), 1),
         }
 
@@ -61,12 +64,29 @@ class DiscoveryService:
         scan_timeout_sec: float = 4.0,
         scan_interval_sec: float = 8.0,
         max_age_sec: float = 30.0,
+        scanner: Callable[[float], Awaitable[list[DiscoveredDevice]]] | None = None,
     ) -> None:
         self.scan_timeout_sec = scan_timeout_sec
         self.scan_interval_sec = scan_interval_sec
         self.max_age_sec = max_age_sec
+        self._connected_lookup: MacConnectedDeviceLookup | None = None
+        if scanner is None:
+            connected_lookup = MacConnectedDeviceLookup()
+            self._connected_lookup = connected_lookup
+
+            async def scan_with_connected(timeout: float) -> list[DiscoveredDevice]:
+                return await scan_codexmeter_devices(
+                    timeout, connected_lookup=connected_lookup
+                )
+
+            self._scanner = scan_with_connected
+        else:
+            self._scanner = scanner
         self._devices: dict[str, DiscoveredDevice] = {}
         self._changed = asyncio.Event()
+        self._last_scan_at: float | None = None
+        self._last_result_count = 0
+        self._last_connected_result_count = 0
         self._last_error: str | None = None
 
     async def run(self, stop_event: asyncio.Event) -> None:
@@ -81,16 +101,38 @@ class DiscoveryService:
             await _sleep_or_stop(stop_event, self.scan_interval_sec)
 
     async def scan_once(self) -> list[DiscoveredDevice]:
-        found = await scan_codexmeter_devices(timeout=self.scan_timeout_sec)
+        self._last_scan_at = time.monotonic()
+        found = await self._scanner(self.scan_timeout_sec)
         now = time.monotonic()
         for device in found:
             device.seen_at = now
             self._devices[device.address] = device
         self._prune(now)
+        self._last_result_count = len(found)
+        self._last_connected_result_count = sum(
+            device.source == "connected" for device in found
+        )
         self._last_error = None
         self._changed.set()
         log.debug("Discovered %d CodexMeter BLE device(s)", len(found))
         return found
+
+    def status(self, now: float | None = None) -> dict[str, object]:
+        now = time.monotonic() if now is None else now
+        self._prune(now)
+        scan_age = None
+        if self._last_scan_at is not None:
+            scan_age = round(max(0.0, now - self._last_scan_at), 1)
+        return {
+            "last_scan_age_sec": scan_age,
+            "last_result_count": self._last_result_count,
+            "connected_result_count": self._last_connected_result_count,
+            "cached_count": len(self._devices),
+            "last_error": self._last_error,
+            "connected_lookup_error": (
+                self._connected_lookup.last_error if self._connected_lookup else None
+            ),
+        }
 
     async def wait_for(
         self,
@@ -193,10 +235,14 @@ class DeviceWorker:
                 if discovered is None:
                     break
                 log.info(
-                    "Connecting CodexMeter %s at %s",
+                    "Connecting CodexMeter %s at %s via %s",
                     label,
                     discovered.address,
+                    discovered.source,
                 )
+                self.slot.state.last_discovered_at = discovered.seen_at
+                self.slot.state.last_discovery_source = discovered.source
+                self.slot.state.last_discovered_address = discovered.address
                 used = await self.transport.connect_and_write(
                     discovered.device,
                     self.slot.queue,
@@ -206,6 +252,9 @@ class DeviceWorker:
                     identity_validator=self._validate_identity,
                 )
                 backoff = 1.0 if used else min(backoff * 2, 60.0)
+                if not stop_event.is_set():
+                    self._record_failure("BLE disconnected; waiting for rediscovery")
+                    await _sleep_or_stop(stop_event, _with_jitter(backoff))
             except asyncio.CancelledError:
                 raise
             except (
@@ -320,20 +369,30 @@ class DeviceManager:
             "configured_count": len(self.slots),
             "connected_count": connected_count,
             "devices": devices,
+            "discovery": self.discovery.status(now),
             "unknown_devices": self.discovery.unknown_devices(
                 [slot.config for slot in self.slots]
             ),
         }
 
 
-async def scan_codexmeter_devices(timeout: float = 4.0) -> list[DiscoveredDevice]:
-    try:
-        from bleak import BleakScanner
-    except ImportError as exc:
-        raise RuntimeError("bleak is required for BLE support") from exc
+async def scan_codexmeter_devices(
+    timeout: float = 4.0,
+    *,
+    discover: Callable[..., Awaitable[dict[str, Any]]] | None = None,
+    connected_lookup: Callable[[], Awaitable[list[Any]]] | None = None,
+) -> list[DiscoveredDevice]:
+    if discover is None:
+        try:
+            from bleak import BleakScanner
+        except ImportError as exc:
+            raise RuntimeError("bleak is required for BLE support") from exc
+        discover = BleakScanner.discover
+    if connected_lookup is None:
+        connected_lookup = MacConnectedDeviceLookup()
 
-    raw = await BleakScanner.discover(timeout=timeout, return_adv=True)
-    result: list[DiscoveredDevice] = []
+    raw = await discover(timeout=timeout, return_adv=True)
+    result: dict[str, DiscoveredDevice] = {}
     for address, item in raw.items():
         device, adv = item
         name = getattr(adv, "local_name", None) or getattr(device, "name", None)
@@ -345,15 +404,32 @@ async def scan_codexmeter_devices(timeout: float = 4.0) -> list[DiscoveredDevice
             is_codexmeter = True
         if not is_codexmeter:
             continue
-        result.append(
-            DiscoveredDevice(
-                address=str(address),
-                name=name,
-                short_id=parse_short_id_from_name(name),
-                device=device,
-            )
+        normalized_address = str(address)
+        result[normalized_address] = DiscoveredDevice(
+            address=normalized_address,
+            name=name,
+            short_id=parse_short_id_from_name(name),
+            device=device,
         )
-    return result
+
+    for device in await connected_lookup():
+        address = str(getattr(device, "address", ""))
+        name = getattr(device, "name", None)
+        if not address or address in result:
+            continue
+        if not (
+            name == DEVICE_NAME
+            or (isinstance(name, str) and name.startswith(f"{DEVICE_NAME}-"))
+        ):
+            continue
+        result[address] = DiscoveredDevice(
+            address=address,
+            name=name,
+            short_id=parse_short_id_from_name(name),
+            device=device,
+            source="connected",
+        )
+    return list(result.values())
 
 
 async def _sleep_or_stop(stop_event: asyncio.Event, seconds: float) -> None:

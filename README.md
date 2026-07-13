@@ -205,7 +205,7 @@ Mac 端只会自动连接已登记设备。首次使用一台新设备时：
 launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 ```
 
-`alias` 只是本机显示标签，不参与连接判断。daemon 运行后会持续扫描附近 CodexMeter；当你带 Mac 从公司回家，办公室设备会离线，家里的已登记设备被扫描到后会由独立 worker 连接。每台设备有独立队列、ACK、重连 backoff 和健康状态；单台设备假活或断电不会阻塞其他设备。首次连接后，daemon 会读取 identity characteristic，把短 ID 登记记录原子升级为完整芯片 ID；后续连接必须通过完整 identity 校验。
+`alias` 只是本机显示标签，不参与连接判断。daemon 运行后会持续扫描附近 CodexMeter；当你带 Mac 从公司回家，办公室设备会离线，家里的已登记设备被扫描到后会由独立 worker 连接。在 macOS 上，discovery 会合并广播结果和 CoreBluetooth 已连接外设，避免设备因残留系统连接停止广播后无法重新接管。每台设备有独立队列、ACK、重连 backoff 和健康状态；单台设备假活或断电不会阻塞其他设备。首次连接后，daemon 会读取 identity characteristic，把短 ID 登记记录原子升级为完整芯片 ID；后续连接必须通过完整 identity 校验。
 
 状态类 payload 会保存每台设备的最新期望值并在重连后恢复。告警在收到设备 ACK 前保持为 in-flight；ACK 丢失时会重试，固件按告警 ID 去重，因此不会因为瞬时断连而漏提醒或重复闪屏。
 
@@ -473,7 +473,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 如果设备刚烧录完成，BLE 会短暂断开，daemon 通常会自动扫描并重连。
 
-如果 CoreBluetooth 连接处于假活状态，daemon 会在 BLE notify 订阅、BLE 写入或设备 ACK 超时后主动断开本次会话，并重新扫描连接。默认写入和 ACK 超时都是 10 秒，notify 订阅超时为 5 秒，应用层 heartbeat 间隔为 45 秒，可通过 `codexmeterd --ble-write-timeout`、`--ble-ack-timeout`、`--ble-notify-timeout` 和 `--ble-healthcheck-interval` 调整。`codexmeterctl status` 会额外显示 BLE 连接状态、队列深度、最近写入/ACK 时间和连续失败次数。
+如果 CoreBluetooth 连接处于假活状态，daemon 会在 BLE notify 订阅、BLE 写入或设备 ACK 超时后主动断开本次会话，并重新扫描连接。设备仍被 CoreBluetooth 标记为已连接而不再广播时，discovery 会通过 service UUID 检索并重新接管它。默认写入和 ACK 超时都是 10 秒，notify 订阅超时为 5 秒，应用层 heartbeat 间隔为 45 秒，可通过 `codexmeterd --ble-write-timeout`、`--ble-ack-timeout`、`--ble-notify-timeout` 和 `--ble-healthcheck-interval` 调整。`codexmeterctl status` 会额外显示 BLE 连接状态、队列深度、最近发现来源、最近写入/ACK 时间、连续失败次数和 discovery 扫描健康状态。
 
 如果 7d 用量短暂跳到 `100%` 且显示 `7d 后重置`，通常是 Codex App Server 返回了临时空窗口。daemon 会过滤这类单次异常快照，并在日志中记录 `Rejected transient usage sample`、原始 `h5/d7/h5r/d7r` 和最终排队的可信值。
 

@@ -28,6 +28,73 @@ from .settings import (
 log = logging.getLogger(__name__)
 
 
+class MacConnectedDeviceLookup:
+    """Reusable CoreBluetooth lookup for peripherals that are not advertising."""
+
+    def __init__(
+        self,
+        service_uuids: tuple[str, ...] = (SERVICE_UUID, "1812"),
+        ready_timeout_sec: float = 5.0,
+    ) -> None:
+        self.service_uuids = service_uuids
+        self.ready_timeout_sec = ready_timeout_sec
+        self._manager: Any | None = None
+        self.last_error: str | None = None
+
+    async def __call__(self) -> list[Any]:
+        if sys.platform != "darwin":
+            return []
+        try:
+            from CoreBluetooth import CBUUID  # type: ignore
+            from bleak.backends.corebluetooth.CentralManagerDelegate import (  # type: ignore
+                CentralManagerDelegate,
+            )
+            from bleak.backends.device import BLEDevice  # type: ignore
+        except Exception:
+            self.last_error = "CoreBluetooth connected lookup unavailable"
+            return []
+
+        try:
+            if self._manager is None:
+                self._manager = CentralManagerDelegate()
+                await asyncio.wait_for(
+                    self._manager.wait_until_ready(), timeout=self.ready_timeout_sec
+                )
+            central = self._manager.central_manager
+            result: list[Any] = []
+            seen: set[str] = set()
+            for service in self.service_uuids:
+                peripherals = central.retrieveConnectedPeripheralsWithServices_(
+                    [CBUUID.UUIDWithString_(service)]
+                )
+                for peripheral in peripherals or []:
+                    address = str(peripheral.identifier().UUIDString())
+                    if address in seen:
+                        continue
+                    seen.add(address)
+                    name = peripheral.name()
+                    result.append(
+                        BLEDevice(
+                            address,
+                            str(name) if name is not None else None,
+                            (peripheral, self._manager),
+                        )
+                    )
+            self.last_error = None
+            return result
+        except Exception as exc:
+            self._manager = None
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            log.debug("macOS connected-peripheral lookup failed", exc_info=True)
+            return []
+
+
+async def retrieve_connected_devices_macos(
+    service_uuids: tuple[str, ...] = (SERVICE_UUID, "1812"),
+) -> list[Any]:
+    return await MacConnectedDeviceLookup(service_uuids)()
+
+
 class BleWriteTimeout(RuntimeError):
     """Raised when CoreBluetooth accepts a connection but a GATT write stalls."""
 
@@ -119,6 +186,9 @@ class BleState:
     pending_alert: Payload | None = None
     observed_device_id: str | None = None
     connected: bool = False
+    last_discovered_at: float | None = None
+    last_discovery_source: str | None = None
+    last_discovered_address: str | None = None
     last_connected_at: float | None = None
     last_disconnected_at: float | None = None
     last_write_at: float | None = None
@@ -137,6 +207,9 @@ class BleState:
         return {
             "connected": self.connected,
             "queue_depth": queue_depth,
+            "last_discovered_age_sec": age(self.last_discovered_at),
+            "last_discovery_source": self.last_discovery_source,
+            "last_discovered_address": self.last_discovered_address,
             "last_connected_age_sec": age(self.last_connected_at),
             "last_disconnected_age_sec": age(self.last_disconnected_at),
             "last_write_age_sec": age(self.last_write_at),
@@ -165,6 +238,7 @@ class BleTransport:
         self.ack_timeout_sec = ack_timeout_sec
         self.notify_timeout_sec = notify_timeout_sec
         self.healthcheck_interval_sec = healthcheck_interval_sec
+        self._connected_lookup = MacConnectedDeviceLookup()
 
     async def run(
         self,
@@ -224,41 +298,17 @@ class BleTransport:
     async def _retrieve_connected_macos(self) -> Any | None:
         """Return a CoreBluetooth-connected peripheral when scans cannot see it."""
 
-        try:
-            from CoreBluetooth import CBUUID  # type: ignore
-            from bleak.backends.corebluetooth.CentralManagerDelegate import (  # type: ignore
-                CentralManagerDelegate,
+        for device in await self._connected_lookup():
+            name = getattr(device, "name", None)
+            if not self._connected_name_matches(name):
+                log.debug("Skipping connected BLE peripheral %s", name or "<unnamed>")
+                continue
+            log.info(
+                "Found connected BLE peripheral %s [%s]",
+                name,
+                getattr(device, "address", "<unknown>"),
             )
-            from bleak.backends.device import BLEDevice  # type: ignore
-        except Exception:
-            return None
-
-        try:
-            manager = CentralManagerDelegate()
-            await manager.wait_until_ready()
-            central = manager.central_manager
-            for service in (SERVICE_UUID, "1812"):
-                peripherals = central.retrieveConnectedPeripheralsWithServices_(
-                    [CBUUID.UUIDWithString_(service)]
-                )
-                for peripheral in peripherals or []:
-                    name = peripheral.name()
-                    if not self._connected_name_matches(name):
-                        log.debug(
-                            "Skipping connected BLE peripheral %s for service %s",
-                            name or "<unnamed>",
-                            service,
-                        )
-                        continue
-                    address = peripheral.identifier().UUIDString()
-                    log.info(
-                        "Found connected BLE peripheral %s [%s]",
-                        name,
-                        address,
-                    )
-                    return BLEDevice(address, str(name), (peripheral, manager))
-        except Exception:
-            log.debug("macOS connected-peripheral lookup failed", exc_info=True)
+            return device
         return None
 
     def _connected_name_matches(self, name: Any) -> bool:

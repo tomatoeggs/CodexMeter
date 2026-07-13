@@ -195,6 +195,9 @@ def test_ble_write_payload_rejects_invalid_ack_json():
 def test_ble_state_status_reports_health_ages():
     state = BleState(
         connected=True,
+        last_discovered_at=9.0,
+        last_discovery_source="connected",
+        last_discovered_address="device-address",
         last_connected_at=10.0,
         last_write_at=12.0,
         last_ack_at=13.0,
@@ -207,6 +210,9 @@ def test_ble_state_status_reports_health_ages():
 
     assert status["connected"] is True
     assert status["queue_depth"] == 3
+    assert status["last_discovered_age_sec"] == 6.0
+    assert status["last_discovery_source"] == "connected"
+    assert status["last_discovered_address"] == "device-address"
     assert status["last_connected_age_sec"] == 5.0
     assert status["last_write_age_sec"] == 3.0
     assert status["last_ack_age_sec"] == 2.0

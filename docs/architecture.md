@@ -16,7 +16,7 @@
 - `codexmeter.limits`：负责限额桶归一化，当前默认只读取 `codex` 桶，将 300 分钟映射为 `5h`，10080 分钟映射为 `7d`。
 - `codexmeter.payloads`：负责 BLE JSON payload 生成、摘要清洗、设备字库字符过滤和 512 bytes 长度约束。
 - `codexmeter.device_registry`：负责读取和维护 `~/.codexmeter/devices.json`，用稳定短 ID 管理已登记设备。
-- `codexmeter.multi_ble`：负责持续扫描附近 CodexMeter、为每台已登记设备创建独立 worker，并把上游 payload fan-out 到每台设备队列。
+- `codexmeter.multi_ble`：负责合并 BLE 广播和 macOS CoreBluetooth 已连接外设、为每台已登记设备创建独立 worker，并把上游 payload fan-out 到每台设备队列。
 - `codexmeter.ble`：负责单个 BLE 外设会话的连接、notify 订阅、写入、ACK 校验和健康检查。
 - `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hooks 与 `codexmeterctl` 使用；同时维护运行中任务集合。
 - `codexmeter.screen_policy`：负责 macOS 锁屏状态轮询、自动亮屏/关屏状态机和 BLE 重连亮屏策略。
@@ -40,7 +40,7 @@
 
 1. daemon 每 60 秒拉取 Codex App Server 限额。
 2. daemon 将 `codex` 限额归一化为 `UsageSnapshot`，生成 `usage` payload 并放入发送队列。
-3. BLE discovery 按 service UUID 和 `CodexMeter-<short_id>` 广播名持续发现附近设备；worker 连接后先读取 identity characteristic，校验完整芯片 ID，再写入 RX characteristic。
+3. BLE discovery 按 service UUID 和 `CodexMeter-<short_id>` 广播名持续发现附近设备；macOS 上还会合并 `retrieveConnectedPeripheralsWithServices` 返回的已连接外设，以覆盖残留连接导致设备停止广播的情况。worker 连接后先读取 identity characteristic，校验完整芯片 ID，再写入 RX characteristic。
 4. 固件解析 `usage`，更新 5h/7d 剩余百分比，并用 `t` 加设备本地经过时间计算重置倒计时：
    - 5h 显示为 `HH:MM 后重置`
    - 7d 显示为 `xd 后重置`
