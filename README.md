@@ -473,7 +473,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 如果设备刚烧录完成，BLE 会短暂断开，daemon 通常会自动扫描并重连。
 
-如果 CoreBluetooth 连接处于假活状态，daemon 会在 BLE notify 订阅、BLE 写入或设备 ACK 超时后主动断开本次会话，并重新扫描连接。设备仍被 CoreBluetooth 标记为已连接而不再广播时，discovery 会通过 service UUID 检索并重新接管它。默认写入和 ACK 超时都是 10 秒，notify 订阅超时为 5 秒，应用层 heartbeat 间隔为 45 秒，可通过 `codexmeterd --ble-write-timeout`、`--ble-ack-timeout`、`--ble-notify-timeout` 和 `--ble-healthcheck-interval` 调整。`codexmeterctl status` 会额外显示 BLE 连接状态、队列深度、最近发现来源、最近写入/ACK 时间、连续失败次数和 discovery 扫描健康状态。
+如果 CoreBluetooth 连接处于假活状态，daemon 会在 BLE 连接、断开清理、notify 订阅、写入或设备 ACK 超时后结束本次会话，并重新扫描连接。设备仍被 CoreBluetooth 标记为已连接而不再广播时，discovery 会通过 service UUID 检索并重新接管它。默认连接超时为 15 秒，断开清理和 notify 订阅超时为 5 秒，写入和 ACK 超时都是 10 秒，应用层 heartbeat 间隔为 45 秒；可通过 `codexmeterd --ble-connect-timeout`、`--ble-disconnect-timeout`、`--ble-write-timeout`、`--ble-ack-timeout`、`--ble-notify-timeout` 和 `--ble-healthcheck-interval` 调整。`codexmeterctl status` 会额外显示 BLE 连接状态、队列深度、最近发现来源、最近写入/ACK 时间、连续失败次数和 discovery 扫描健康状态。
 
 如果 7d 用量短暂跳到 `100%` 且显示 `7d 后重置`，通常是 Codex App Server 返回了临时空窗口。daemon 会过滤这类单次异常快照，并在日志中记录 `Rejected transient usage sample`、原始 `h5/d7/h5r/d7r` 和最终排队的可信值。
 

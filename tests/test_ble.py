@@ -4,6 +4,7 @@ from codexmeter.ble import (
     BleAckError,
     BleAckTimeout,
     BleAckTracker,
+    BleConnectTimeout,
     BleIdentity,
     BleIdentityError,
     BleNotifyError,
@@ -38,6 +39,75 @@ class FakeNotifyClient:
         self.notifications.append(uuid)
         if self.delay_sec:
             await asyncio.sleep(self.delay_sec)
+
+
+class FakeLifecycleClient:
+    def __init__(
+        self,
+        *,
+        connect_delay_sec: float = 0.0,
+        disconnect_delay_sec: float = 0.0,
+    ) -> None:
+        self.connect_delay_sec = connect_delay_sec
+        self.disconnect_delay_sec = disconnect_delay_sec
+        self.disconnect_calls = 0
+        self.is_connected = False
+
+    async def connect(self) -> None:
+        await asyncio.sleep(self.connect_delay_sec)
+        self.is_connected = True
+
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        await asyncio.sleep(self.disconnect_delay_sec)
+        self.is_connected = False
+
+
+class FakeClientTransport(BleTransport):
+    def __init__(self, client: FakeLifecycleClient, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.client = client
+
+    def _create_client(self, _target):
+        return self.client
+
+
+def test_ble_connect_timeout_disconnects_partial_client():
+    async def run() -> None:
+        client = FakeLifecycleClient(connect_delay_sec=1.0)
+        transport = FakeClientTransport(
+            client,
+            connect_timeout_sec=0.01,
+            disconnect_timeout_sec=0.1,
+        )
+        state = BleState()
+
+        try:
+            await transport.connect_and_write(
+                object(), asyncio.Queue(), state, asyncio.Event()
+            )
+        except BleConnectTimeout:
+            pass
+        else:
+            raise AssertionError("expected BLE connect timeout")
+
+        assert client.disconnect_calls == 1
+        assert state.connected is False
+        assert state.last_disconnected_at is None
+
+    asyncio.run(run())
+
+
+def test_ble_disconnect_timeout_bounds_cleanup():
+    async def run() -> None:
+        client = FakeLifecycleClient(disconnect_delay_sec=1.0)
+        transport = BleTransport(disconnect_timeout_sec=0.01)
+
+        await transport._disconnect(client, "test-device")
+
+        assert client.disconnect_calls == 1
+
+    asyncio.run(run())
 
 
 def test_ble_skips_stale_screen_on_when_connect_wake_is_disabled():

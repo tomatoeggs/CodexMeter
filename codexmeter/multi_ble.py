@@ -12,6 +12,7 @@ from typing import Any, Awaitable, Callable
 from .ble import (
     BleAckError,
     BleAckTimeout,
+    BleConnectTimeout,
     BleIdentity,
     BleIdentityError,
     BleNotifyError,
@@ -258,6 +259,7 @@ class DeviceWorker:
             except asyncio.CancelledError:
                 raise
             except (
+                BleConnectTimeout,
                 BleWriteTimeout,
                 BleAckTimeout,
                 BleAckError,
@@ -308,6 +310,8 @@ class DeviceManager:
         *,
         scan_timeout_sec: float = 4.0,
         scan_interval_sec: float = 8.0,
+        connect_timeout_sec: float,
+        disconnect_timeout_sec: float,
         write_timeout_sec: float,
         ack_timeout_sec: float,
         notify_timeout_sec: float,
@@ -331,6 +335,8 @@ class DeviceManager:
                 BleTransport(
                     device_name=slot.config.name or DEVICE_NAME,
                     scan_timeout_sec=scan_timeout_sec,
+                    connect_timeout_sec=connect_timeout_sec,
+                    disconnect_timeout_sec=disconnect_timeout_sec,
                     write_timeout_sec=write_timeout_sec,
                     ack_timeout_sec=ack_timeout_sec,
                     notify_timeout_sec=notify_timeout_sec,

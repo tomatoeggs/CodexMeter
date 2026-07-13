@@ -35,6 +35,8 @@ from .settings import (
     APP_DIR,
     AUTO_SCREEN_TIMEOUT_SEC,
     BLE_ACK_TIMEOUT_SEC,
+    BLE_CONNECT_TIMEOUT_SEC,
+    BLE_DISCONNECT_TIMEOUT_SEC,
     BLE_HEALTHCHECK_INTERVAL_SEC,
     BLE_NOTIFY_TIMEOUT_SEC,
     BLE_WRITE_TIMEOUT_SEC,
@@ -297,6 +299,8 @@ async def run_daemon(args: argparse.Namespace) -> None:
         registry.enabled_devices(),
         scan_timeout_sec=args.scan_timeout,
         scan_interval_sec=args.scan_interval,
+        connect_timeout_sec=args.ble_connect_timeout,
+        disconnect_timeout_sec=args.ble_disconnect_timeout,
         write_timeout_sec=args.ble_write_timeout,
         ack_timeout_sec=args.ble_ack_timeout,
         notify_timeout_sec=args.ble_notify_timeout,
@@ -364,6 +368,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL_SEC)
     parser.add_argument("--scan-timeout", type=float, default=8.0)
     parser.add_argument("--scan-interval", type=float, default=8.0)
+    parser.add_argument(
+        "--ble-connect-timeout", type=float, default=BLE_CONNECT_TIMEOUT_SEC
+    )
+    parser.add_argument(
+        "--ble-disconnect-timeout", type=float, default=BLE_DISCONNECT_TIMEOUT_SEC
+    )
     parser.add_argument("--ble-write-timeout", type=float, default=BLE_WRITE_TIMEOUT_SEC)
     parser.add_argument("--ble-ack-timeout", type=float, default=BLE_ACK_TIMEOUT_SEC)
     parser.add_argument("--ble-notify-timeout", type=float, default=BLE_NOTIFY_TIMEOUT_SEC)

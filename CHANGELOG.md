@@ -3,6 +3,7 @@
 ## 未发布
 
 - 修复 macOS CoreBluetooth 残留连接下设备停止广播后，多设备 discovery 无法重新接管连接的问题；补充发现来源与扫描健康状态。
+- 为 BLE 连接和断开清理增加独立超时，避免 CoreBluetooth 卡住单台设备 worker 并阻止后续重连。
 - 完善公开仓库文档、快速开始、项目截图、安全说明和 Python 包元数据，并以 MIT License 开源。
 - README 增加 CodexMeter 实物运行照片。
 

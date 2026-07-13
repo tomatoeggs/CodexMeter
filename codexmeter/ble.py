@@ -13,6 +13,8 @@ from typing import Any, Callable
 from .payloads import Payload
 from .settings import (
     BLE_ACK_TIMEOUT_SEC,
+    BLE_CONNECT_TIMEOUT_SEC,
+    BLE_DISCONNECT_TIMEOUT_SEC,
     BLE_HEALTHCHECK_INTERVAL_SEC,
     BLE_NOTIFY_TIMEOUT_SEC,
     BLE_WRITE_TIMEOUT_SEC,
@@ -97,6 +99,10 @@ async def retrieve_connected_devices_macos(
 
 class BleWriteTimeout(RuntimeError):
     """Raised when CoreBluetooth accepts a connection but a GATT write stalls."""
+
+
+class BleConnectTimeout(RuntimeError):
+    """Raised when CoreBluetooth does not finish connecting in time."""
 
 
 class BleAckTimeout(RuntimeError):
@@ -227,6 +233,8 @@ class BleTransport:
         self,
         device_name: str = DEVICE_NAME,
         scan_timeout_sec: float = SCAN_TIMEOUT_SEC,
+        connect_timeout_sec: float = BLE_CONNECT_TIMEOUT_SEC,
+        disconnect_timeout_sec: float = BLE_DISCONNECT_TIMEOUT_SEC,
         write_timeout_sec: float = BLE_WRITE_TIMEOUT_SEC,
         ack_timeout_sec: float = BLE_ACK_TIMEOUT_SEC,
         notify_timeout_sec: float = BLE_NOTIFY_TIMEOUT_SEC,
@@ -234,6 +242,8 @@ class BleTransport:
     ) -> None:
         self.device_name = device_name
         self.scan_timeout_sec = scan_timeout_sec
+        self.connect_timeout_sec = connect_timeout_sec
+        self.disconnect_timeout_sec = disconnect_timeout_sec
         self.write_timeout_sec = write_timeout_sec
         self.ack_timeout_sec = ack_timeout_sec
         self.notify_timeout_sec = notify_timeout_sec
@@ -264,7 +274,13 @@ class BleTransport:
                 backoff = 1.0 if used else min(backoff * 2, 60.0)
             except asyncio.CancelledError:
                 raise
-            except (BleWriteTimeout, BleAckTimeout, BleAckError, BleNotifyError) as exc:
+            except (
+                BleConnectTimeout,
+                BleWriteTimeout,
+                BleAckTimeout,
+                BleAckError,
+                BleNotifyError,
+            ) as exc:
                 state.connected = False
                 state.consecutive_failures += 1
                 state.last_error = str(exc)
@@ -314,6 +330,25 @@ class BleTransport:
     def _connected_name_matches(self, name: Any) -> bool:
         return name is not None and str(name) == self.device_name
 
+    def _create_client(self, target: Any) -> Any:
+        from bleak import BleakClient
+
+        return BleakClient(target, timeout=self.connect_timeout_sec)
+
+    async def _disconnect(self, client: Any, display: str) -> None:
+        try:
+            await asyncio.wait_for(
+                client.disconnect(), timeout=self.disconnect_timeout_sec
+            )
+        except asyncio.TimeoutError:
+            log.warning(
+                "BLE disconnect from %s timed out after %.1fs",
+                display,
+                self.disconnect_timeout_sec,
+            )
+        except Exception:
+            log.warning("BLE disconnect from %s failed", display, exc_info=True)
+
     async def _connect_and_write(
         self,
         target: Any,
@@ -324,7 +359,6 @@ class BleTransport:
         require_identity: bool = False,
         identity_validator: Callable[[BleIdentity], None] | None = None,
     ) -> bool:
-        from bleak import BleakClient
         from bleak.exc import BleakError
 
         refresh_requested = asyncio.Event()
@@ -336,7 +370,17 @@ class BleTransport:
         display = getattr(target, "address", str(target))
         log.info("Connecting to %s", display)
         used_successfully = False
-        async with BleakClient(target) as client:
+        client = self._create_client(target)
+        loop = asyncio.get_running_loop()
+        try:
+            try:
+                await asyncio.wait_for(
+                    client.connect(), timeout=self.connect_timeout_sec
+                )
+            except asyncio.TimeoutError as exc:
+                raise BleConnectTimeout(
+                    f"BLE connect timed out after {self.connect_timeout_sec:.1f}s"
+                ) from exc
             log.info("Connected to %s", display)
             if require_identity:
                 identity = await self._read_identity(client)
@@ -358,7 +402,6 @@ class BleTransport:
             except (BleakError, ValueError, BleNotifyError) as exc:
                 log.debug("BLE refresh notifications unavailable: %s", exc)
 
-            loop = asyncio.get_running_loop()
             state.connected = True
             state.last_connected_at = loop.time()
             state.last_error = None
@@ -438,8 +481,9 @@ class BleTransport:
             finally:
                 state.connected = False
                 state.last_disconnected_at = loop.time()
-
-        log.info("BLE disconnected from %s", display)
+        finally:
+            await self._disconnect(client, display)
+            log.info("BLE disconnected from %s", display)
         return used_successfully
 
     async def connect_and_write(
