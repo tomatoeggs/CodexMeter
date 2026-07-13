@@ -1,0 +1,31 @@
+CHANGELOG.md
+  s_533e259b8b339a::t_7f8b00bc4ae878 6
+README.md
+  s_533e259b8b339a::t_5e4118921680e8 476
+codexmeter/ble.py
+  s_533e259b8b339a::t_af1a6b769bdf9d 16-17,104-107,236-237,245-246,277-283,333-351,373-383,484-486
+codexmeter/multi_ble.py
+  s_533e259b8b339a::t_7881c6c263d7dc 15,262,313-314,338-339
+codexmeter/settings.py
+  s_533e259b8b339a::t_aac3e70187c03c 26-27
+tests/test_multi_ble.py
+  s_533e259b8b339a::t_09f65e0ae6148e 25-26,46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae66005cff525ae3059fff62c098983968f558e5",
+  "prompts": {},
+  "sessions": {
+    "s_533e259b8b339a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4262-5c28-71b0-8285-bc81e3f03d58",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
