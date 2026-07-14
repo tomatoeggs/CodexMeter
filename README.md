@@ -34,6 +34,24 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量与任务完
 - 正常页会定时在 2px 范围内轻微漂移，降低 AMOLED 固定元素长期停留在同一批像素上的风险。
 - 通过板载 QMI8658 IMU 感知重力方向，自动旋转屏幕显示方向。
 
+## 3D 打印外壳
+
+CodexMeter 现在有了一款以 Codex 桌面宠物为灵感的 3D 打印外壳。它把 2.16 英寸 AMOLED 屏幕嵌入宠物头部，在显示 Codex 剩余用量和任务状态的同时，也可以作为桌面摆件；顶部三枚按键仍可正常操作。
+
+> [前往 MakerWorld 查看、下载并打印 CodexMeter 外壳](https://makerworld.com.cn/zh/models/2731561-codexmeter-codex-sheng-yu-yong-liang-yun-xing-zhua#profileId-3169693)
+
+<p align="center">
+  <img src="docs/assets/codex-pet-enclosure.gif" width="360" alt="CodexMeter Codex 桌面宠物 3D 打印外壳运行效果">
+</p>
+
+<p align="center"><em>Codex 桌面宠物造型外壳运行效果</em></p>
+
+<p align="center">
+  <img src="docs/assets/codex-pet-enclosure-colors.jpg" width="760" alt="蓝色和冰蓝色 CodexMeter 3D 打印外壳实物">
+</p>
+
+<p align="center"><em>蓝色与冰蓝色外壳实物</em></p>
+
 ## 兼容性与前置条件
 
 - 一台运行 macOS 的 Mac；暂不支持多台 Mac 共同驱动同一设备。
