@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量与任务完
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v2.0.1`](CHANGELOG.md)。
+当前稳定版本为 [`v2.0.2`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -238,7 +238,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 - 先红、黄、绿全屏闪动。
 - 闪动结束后显示“任务完成！”。
 - 下方最多显示四行 Codex 任务摘要，超出部分在第四行省略；正文使用 LittleFS 中的 TTF 字体经 LVGL TinyTTF 本地渲染。
-- 摘要在 macOS 端只移除控制字符并保留 Unicode 文本，中文覆盖主要由设备端 TTF 字体负责。
+- 摘要在 macOS 端只移除控制字符并保留 Unicode 文本，中文覆盖主要由设备端 TTF 字体负责；TTF 缺失的常见智能标点由内置 UI 字体兜底。
 - 默认在文字出现后停留 8 秒；提醒显示时关屏会同时关闭当前提醒。
 
 ## 固件编译与烧录
