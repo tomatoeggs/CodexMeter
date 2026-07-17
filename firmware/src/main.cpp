@@ -292,8 +292,12 @@ static void handle_json(const char* json) {
     last_usage_ms = millis();
     ui_update_usage(usage);
     device_logf(
-        "INFO", "usage h5=%d d7=%d status=%s", usage.h5_remaining,
-        usage.d7_remaining, usage.status);
+        "INFO", "usage h5=%d d7=%d td=%llu t7=%llu token_mode=%d status=%s",
+        usage.h5_remaining, usage.d7_remaining,
+        (unsigned long long)usage.today_tokens,
+        (unsigned long long)usage.last_7d_tokens,
+        usage.h5_remaining < 0 && usage.d7_remaining >= 0 ? 1 : 0,
+        usage.status);
     ble_service_ack();
   } else if (kind == PAYLOAD_ALERT) {
     bool duplicate = false;
@@ -417,6 +421,11 @@ static void handle_serial() {
         last_usage_ms = millis();
         ui_update_usage(usage);
         device_logf("INFO", "serial demo_usage");
+      } else if (strcmp(buf, "demo_token_usage") == 0) {
+        usage_apply_token_demo(&usage);
+        last_usage_ms = millis();
+        ui_update_usage(usage);
+        device_logf("INFO", "serial demo_token_usage");
       } else if (strcmp(buf, "demo_alert") == 0) {
         alert_apply_demo(&alert);
         ui_show_alert(alert);

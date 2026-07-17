@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "codexmeter_montserrat_medium_ttf.inc"
+
 LV_FONT_DECLARE(codexmeter_font_30);
 LV_FONT_DECLARE(codexmeter_percent_64);
 
@@ -18,8 +20,13 @@ static lv_obj_t* top_logo;
 static lv_obj_t* top_title;
 static lv_obj_t* top_battery;
 static lv_obj_t* top_battery_fill;
+static lv_obj_t* h5_content;
 static lv_obj_t* h5_pct;
 static lv_obj_t* h5_reset;
+static lv_obj_t* token_content;
+static lv_obj_t* token_today_value;
+static lv_obj_t* token_7d_value;
+static lv_obj_t* d7_heading;
 static lv_obj_t* d7_pct;
 static lv_obj_t* d7_reset;
 static lv_obj_t* activity_dots[12];
@@ -31,6 +38,7 @@ static lv_obj_t* brightness_bar;
 static lv_obj_t* brightness_pct;
 static lv_font_t* alert_title_ttf;
 static lv_font_t* alert_body_ttf;
+static lv_font_t* token_value_ttf;
 
 static bool alert_active = false;
 static bool alert_reveal_pending = false;
@@ -39,6 +47,7 @@ static uint32_t flash_started_ms = 0;
 static uint32_t alert_reveal_started_ms = 0;
 static int flash_step = -1;
 static bool brightness_active = false;
+static bool token_usage_mode = false;
 static uint32_t brightness_started_ms = 0;
 static uint32_t drift_last_ms = 0;
 static uint8_t drift_index = 0;
@@ -60,6 +69,8 @@ static const int PANEL_W = CODEXMETER_SCREEN_W - 40;
 static const int PANEL_H = 158;
 static const int PANEL_CONTENT_W = PANEL_W - 64;
 static const int PANEL_CONTENT_H = 108;
+static const int TOKEN_RIGHT_COLUMN_X = 216;
+static const int TOKEN_VALUE_Y_OFFSET = 7;
 static const int ALERT_TEXT_W = CODEXMETER_SCREEN_W - 64;
 static const int ALERT_TEXT_X = 32;
 // TinyTTF centers by advance width; this font's visible CJK bounds sit slightly right.
@@ -117,6 +128,11 @@ static const lv_font_t* alert_title_font() {
   return ui_font();
 }
 
+static const lv_font_t* token_value_font() {
+  if (token_value_ttf) return token_value_ttf;
+  return &lv_font_montserrat_48;
+}
+
 static size_t text_len(const char* text) {
   return text ? strlen(text) : 0;
 }
@@ -148,10 +164,18 @@ static void init_dynamic_fonts() {
   alert_body_ttf = lv_tiny_ttf_create_file_ex(
       CODEXMETER_TTF_FONT_PATH, CODEXMETER_TTF_ALERT_SIZE, LV_FONT_KERNING_NONE,
       CODEXMETER_TTF_CACHE_GLYPHS);
+  token_value_ttf = lv_tiny_ttf_create_data_ex(
+      codexmeter_montserrat_medium_ttf, codexmeter_montserrat_medium_ttf_len,
+      CODEXMETER_TTF_TOKEN_SIZE, LV_FONT_KERNING_NONE,
+      CODEXMETER_TTF_TOKEN_CACHE_GLYPHS);
   if (alert_title_ttf) alert_title_ttf->fallback = ui_font();
   if (alert_body_ttf) alert_body_ttf->fallback = ui_font();
-  if (alert_title_ttf && alert_body_ttf) {
+  if (token_value_ttf) token_value_ttf->fallback = &lv_font_montserrat_48;
+  if (alert_title_ttf && alert_body_ttf && token_value_ttf) {
     device_logf("INFO", "TinyTTF font ready %s", CODEXMETER_TTF_FONT_PATH);
+    device_logf("INFO", "TinyTTF line height title=%d body=%d token=%d",
+                alert_title_ttf->line_height, alert_body_ttf->line_height,
+                token_value_ttf->line_height);
     device_log_heap("ttf_ready");
     log_lvgl_mem("ttf_ready");
   } else {
@@ -185,6 +209,8 @@ static lv_obj_t* make_label(lv_obj_t* parent, const char* text, const lv_font_t*
 
 static lv_obj_t* make_panel(int y) {
   lv_obj_t* panel = lv_obj_create(main_layer);
+  lv_obj_remove_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(panel, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_size(panel, PANEL_W, PANEL_H);
   lv_obj_set_pos(panel, 20, y);
   lv_obj_set_style_radius(panel, 8, 0);
@@ -414,6 +440,57 @@ static String pct_text(int value) {
   return String(value) + "%";
 }
 
+static String compact_token_text(bool valid, uint64_t tokens) {
+  if (!valid) return "--";
+
+  static const char* UNITS[] = {"", "K", "M", "B", "T"};
+  double scaled = (double)tokens;
+  int unit = 0;
+  while (scaled >= 1000.0 && unit < 4) {
+    scaled /= 1000.0;
+    unit++;
+  }
+
+  char buf[24];
+  if (unit == 0) {
+    snprintf(buf, sizeof(buf), "%llu", (unsigned long long)tokens);
+  } else if (scaled >= 100.0) {
+    snprintf(buf, sizeof(buf), "%.0f%s", scaled, UNITS[unit]);
+  } else {
+    snprintf(buf, sizeof(buf), "%.1f%s", scaled, UNITS[unit]);
+    size_t len = strlen(buf);
+    if (len >= 3 && buf[len - 3] == '.' && buf[len - 2] == '0') {
+      buf[len - 3] = buf[len - 1];
+      buf[len - 2] = '\0';
+    }
+  }
+  return String(buf);
+}
+
+static void set_token_usage_mode(bool enabled) {
+  if (token_usage_mode == enabled) return;
+  token_usage_mode = enabled;
+
+  if (enabled) {
+    lv_obj_add_flag(h5_content, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(token_content, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(top_title, "Token用量");
+    lv_obj_set_style_text_font(top_title, alert_title_font(), 0);
+    lv_label_set_text(d7_heading, "7d 额度剩余");
+    lv_obj_set_style_text_font(d7_heading, alert_title_font(), 0);
+  } else {
+    lv_obj_clear_flag(h5_content, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(token_content, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(top_title, "剩余用量");
+    lv_obj_set_style_text_font(top_title, ui_font(), 0);
+    lv_label_set_text(d7_heading, "7d 剩余:");
+    lv_obj_set_style_text_font(d7_heading, ui_font(), 0);
+  }
+
+  lv_obj_align(top_title, LV_ALIGN_TOP_MID, 0, 17);
+  lv_obj_align(d7_heading, LV_ALIGN_TOP_LEFT, 0, 0);
+}
+
 static void make_brightness_overlay() {
   brightness_layer = lv_obj_create(screen);
   lv_obj_remove_flag(brightness_layer, LV_OBJ_FLAG_SCROLLABLE);
@@ -474,20 +551,43 @@ void ui_init() {
   lv_obj_align(top_battery, LV_ALIGN_TOP_RIGHT, -58, 16);
 
   lv_obj_t* panel_h5 = make_panel(92);
-  lv_obj_t* content_h5 = make_panel_content(panel_h5);
-  make_label(content_h5, "5h 剩余:", ui_font(), DIM);
-  lv_obj_t* label = lv_obj_get_child(content_h5, 0);
+  h5_content = make_panel_content(panel_h5);
+  make_label(h5_content, "5h 剩余:", ui_font(), DIM);
+  lv_obj_t* label = lv_obj_get_child(h5_content, 0);
   lv_obj_align(label, LV_ALIGN_TOP_LEFT, 0, 0);
-  h5_pct = make_label(content_h5, "--%", percent_font(), TEXT);
+  h5_pct = make_label(h5_content, "--%", percent_font(), TEXT);
   lv_obj_align(h5_pct, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-  h5_reset = make_label(content_h5, "-- 后重置", ui_font(), DIM);
+  h5_reset = make_label(h5_content, "-- 后重置", ui_font(), DIM);
   lv_obj_align(h5_reset, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+
+  token_content = make_panel_content(panel_h5);
+  label = make_label(token_content, "今日用量", alert_title_font(), DIM);
+  lv_obj_align(label, LV_ALIGN_TOP_LEFT, 0, 0);
+  token_today_value =
+      make_label(token_content, "--", token_value_font(), TEXT);
+  lv_obj_align(
+      token_today_value, LV_ALIGN_BOTTOM_LEFT, 0, TOKEN_VALUE_Y_OFFSET);
+
+  label = make_label(token_content, "近7天", alert_title_font(), DIM);
+  lv_obj_set_pos(label, TOKEN_RIGHT_COLUMN_X, 0);
+  token_7d_value =
+      make_label(token_content, "--", token_value_font(), TEXT);
+  lv_obj_align(
+      token_7d_value, LV_ALIGN_BOTTOM_LEFT, TOKEN_RIGHT_COLUMN_X,
+      TOKEN_VALUE_Y_OFFSET);
+
+  lv_obj_t* divider = lv_obj_create(token_content);
+  strip_obj(divider);
+  lv_obj_set_size(divider, 1, 100);
+  lv_obj_set_pos(divider, 188, 4);
+  lv_obj_set_style_bg_color(divider, lv_color_hex(0x303747), 0);
+  lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
+  lv_obj_add_flag(token_content, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t* panel_d7 = make_panel(270);
   lv_obj_t* content_d7 = make_panel_content(panel_d7);
-  make_label(content_d7, "7d 剩余:", ui_font(), DIM);
-  label = lv_obj_get_child(content_d7, 0);
-  lv_obj_align(label, LV_ALIGN_TOP_LEFT, 0, 0);
+  d7_heading = make_label(content_d7, "7d 剩余:", ui_font(), DIM);
+  lv_obj_align(d7_heading, LV_ALIGN_TOP_LEFT, 0, 0);
   d7_pct = make_label(content_d7, "--%", percent_font(), TEXT);
   lv_obj_align(d7_pct, LV_ALIGN_BOTTOM_LEFT, 0, 0);
   d7_reset = make_label(content_d7, "-- 后重置", ui_font(), DIM);
@@ -520,8 +620,15 @@ void ui_init() {
 }
 
 void ui_update_usage(const UsageModel& usage) {
+  set_token_usage_mode(usage.h5_remaining < 0 && usage.d7_remaining >= 0);
   lv_label_set_text(h5_pct, pct_text(usage.h5_remaining).c_str());
   lv_label_set_text(h5_reset, h5_reset_text(usage).c_str());
+  lv_label_set_text(
+      token_today_value,
+      compact_token_text(usage.has_today_tokens, usage.today_tokens).c_str());
+  lv_label_set_text(
+      token_7d_value,
+      compact_token_text(usage.has_last_7d_tokens, usage.last_7d_tokens).c_str());
   lv_label_set_text(d7_pct, pct_text(usage.d7_remaining).c_str());
   lv_label_set_text(d7_reset, d7_reset_text(usage).c_str());
 }

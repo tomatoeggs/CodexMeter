@@ -38,6 +38,8 @@ def build_usage_payload(snapshot: UsageSnapshot) -> Payload:
         "h5r": snapshot.h5_resets_at,
         "d7": snapshot.d7_remaining_percent,
         "d7r": snapshot.d7_resets_at,
+        "td": snapshot.today_tokens,
+        "t7": snapshot.last_7d_tokens,
         "st": snapshot.status,
         "t": snapshot.generated_at,
     }

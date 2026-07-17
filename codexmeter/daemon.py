@@ -24,6 +24,7 @@ from .limits import (
     UsageSnapshotDecision,
     UsageSnapshotStabilizer,
     is_suspicious_initial_snapshot,
+    merge_missing_token_activity,
 )
 from .multi_ble import DeviceManager
 from .payloads import Payload, build_activity_payload, build_usage_payload
@@ -94,11 +95,13 @@ async def quota_loop(
     cached_snapshot = load_cached_usage_snapshot()
     if cached_snapshot is not None:
         logging.info(
-            "Loaded cached usage h5=%s d7=%s h5r=%s d7r=%s status=%s",
+            "Loaded cached usage h5=%s d7=%s h5r=%s d7r=%s td=%s t7=%s status=%s",
             cached_snapshot.h5_remaining_percent,
             cached_snapshot.d7_remaining_percent,
             cached_snapshot.h5_resets_at,
             cached_snapshot.d7_resets_at,
+            cached_snapshot.today_tokens,
+            cached_snapshot.last_7d_tokens,
             cached_snapshot.status,
         )
     last_usage_payload = (
@@ -108,6 +111,10 @@ async def quota_loop(
     while not stop_event.is_set():
         try:
             raw_snapshot = await provider.fetch()
+            raw_snapshot = merge_missing_token_activity(
+                raw_snapshot,
+                stabilizer.trusted,
+            )
             if stabilizer.trusted is None and is_suspicious_initial_snapshot(raw_snapshot):
                 logging.warning(
                     "Rejected suspicious initial usage sample raw_h5=%s raw_d7=%s "
@@ -148,11 +155,13 @@ def log_usage_decision(
     snapshot = decision.snapshot
     if decision.accepted:
         logging.info(
-            "Queued usage h5=%s d7=%s h5r=%s d7r=%s status=%s decision=%s",
+            "Queued usage h5=%s d7=%s h5r=%s d7r=%s td=%s t7=%s status=%s decision=%s",
             snapshot.h5_remaining_percent,
             snapshot.d7_remaining_percent,
             snapshot.h5_resets_at,
             snapshot.d7_resets_at,
+            snapshot.today_tokens,
+            snapshot.last_7d_tokens,
             snapshot.status,
             decision.reason,
         )
@@ -211,6 +220,8 @@ def usage_snapshot_to_cache(snapshot: UsageSnapshot) -> dict[str, object]:
         "d7_resets_at": snapshot.d7_resets_at,
         "status": snapshot.status,
         "generated_at": snapshot.generated_at,
+        "today_tokens": snapshot.today_tokens,
+        "last_7d_tokens": snapshot.last_7d_tokens,
     }
 
 
@@ -229,6 +240,8 @@ def usage_snapshot_from_cache(data: dict[str, object]) -> UsageSnapshot | None:
         d7_resets_at=_cache_int(data.get("d7_resets_at")),
         status=status,
         generated_at=generated_at,
+        today_tokens=_cache_int(data.get("today_tokens")),
+        last_7d_tokens=_cache_int(data.get("last_7d_tokens")),
     )
 
 

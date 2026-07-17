@@ -39,6 +39,14 @@ class UsageSnapshot:
     d7_resets_at: int | None
     status: str
     generated_at: int
+    today_tokens: int | None = None
+    last_7d_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class TokenActivity:
+    today_tokens: int | None
+    last_7d_tokens: int | None
 
 
 @dataclass(frozen=True)
@@ -221,13 +229,13 @@ def usage_snapshot_from_rate_limits(
     h5 = by_duration.get(WINDOW_5H_MINS)
     d7 = by_duration.get(WINDOW_7D_MINS)
 
-    # Older or partial app-server responses may omit durations. Codex exposes
-    # primary then secondary in the same order as /status, so use that as a
-    # conservative fallback.
-    if h5 is None and windows:
-        h5 = windows[0]
-    if d7 is None and len(windows) > 1:
-        d7 = windows[1]
+    # Older app-server responses may omit durations. Only infer those unknown
+    # rows by position; never relabel an explicitly identified 7d window as 5h.
+    unknown_duration = [window for window in windows if window.duration_mins is None]
+    if h5 is None and unknown_duration:
+        h5 = unknown_duration.pop(0)
+    if d7 is None and unknown_duration:
+        d7 = unknown_duration.pop(0)
 
     statuses = [window.status for window in (h5, d7) if window is not None]
     status = "ok"
@@ -242,6 +250,97 @@ def usage_snapshot_from_rate_limits(
         d7_resets_at=d7.resets_at if d7 else None,
         status=status,
         generated_at=generated_at,
+    )
+
+
+def token_activity_from_account_usage(
+    response: dict[str, Any],
+    today: dt.date | None = None,
+    today_tokens_fallback: int | None = None,
+) -> TokenActivity:
+    """Normalize account/usage/read daily buckets for the device summary."""
+
+    buckets = response.get("dailyUsageBuckets")
+    if not isinstance(buckets, list):
+        return TokenActivity(
+            today_tokens=today_tokens_fallback,
+            last_7d_tokens=None,
+        )
+
+    by_date: dict[dt.date, int] = {}
+    for bucket in buckets:
+        if not isinstance(bucket, dict):
+            continue
+        start_date = bucket.get("startDate")
+        tokens = bucket.get("tokens")
+        if not isinstance(start_date, str) or isinstance(tokens, bool):
+            continue
+        if not isinstance(tokens, int):
+            continue
+        try:
+            bucket_date = dt.date.fromisoformat(start_date)
+        except ValueError:
+            continue
+        by_date[bucket_date] = max(0, tokens)
+
+    current_date = today if today is not None else dt.date.today()
+    first_date = current_date - dt.timedelta(days=6)
+    has_current_bucket = current_date in by_date
+    today_tokens = (
+        by_date[current_date] if has_current_bucket else today_tokens_fallback
+    )
+    last_7d_tokens = sum(
+        tokens for day, tokens in by_date.items() if first_date <= day <= current_date
+    )
+    if not has_current_bucket:
+        if today_tokens_fallback is None:
+            last_7d_tokens = None
+        else:
+            last_7d_tokens += today_tokens_fallback
+    return TokenActivity(
+        today_tokens=today_tokens,
+        last_7d_tokens=last_7d_tokens,
+    )
+
+
+def usage_snapshot_with_token_activity(
+    snapshot: UsageSnapshot,
+    response: dict[str, Any],
+    today: dt.date | None = None,
+    today_tokens_fallback: int | None = None,
+) -> UsageSnapshot:
+    activity = token_activity_from_account_usage(
+        response,
+        today=today,
+        today_tokens_fallback=today_tokens_fallback,
+    )
+    return replace(
+        snapshot,
+        today_tokens=activity.today_tokens,
+        last_7d_tokens=activity.last_7d_tokens,
+    )
+
+
+def merge_missing_token_activity(
+    snapshot: UsageSnapshot,
+    fallback: UsageSnapshot | None,
+) -> UsageSnapshot:
+    """Keep the last token activity when its optional endpoint is unavailable."""
+
+    if fallback is None:
+        return snapshot
+    return replace(
+        snapshot,
+        today_tokens=(
+            snapshot.today_tokens
+            if snapshot.today_tokens is not None
+            else fallback.today_tokens
+        ),
+        last_7d_tokens=(
+            snapshot.last_7d_tokens
+            if snapshot.last_7d_tokens is not None
+            else fallback.last_7d_tokens
+        ),
     )
 
 

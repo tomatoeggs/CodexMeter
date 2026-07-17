@@ -2,6 +2,14 @@
 
 ## 未发布
 
+## v2.1.0
+
+- 新增 Token 活动主页：当 Codex 只返回有效 7d 限额窗口时，自动显示今日/近7天 Token 消耗和 7d 额度；5h 窗口恢复时自动切回原有双余量布局。
+- macOS daemon 新增可选 `account/usage/read` 读取、近 7 个自然日聚合和缓存回退；旧版 Codex 或接口失败不会阻断限额刷新。
+- 修复服务端当天 Token 桶尚未生成时误显示 `0`：改用本机 session `token_count` 增量作为实时回退，并过滤 fork 的历史事件回放。
+- `usage` BLE payload 以兼容方式新增 `td` / `t7` 字段，并增加宿主与串口 Token 布局预览命令。
+- 完善 Token 主页视觉样式：统一标题和数字字体、字号与间距，移除多余滚动条和标点，并使用可配置的 Montserrat TTF 渲染 Token 数值。
+
 ## v2.0.2
 
 - 修复任务完成摘要中 `“”‘’—–…·` 等常见智能标点无法渲染的问题：这些符号现在会进入内置 UI 字体，作为 TinyTTF 字体缺字时的 fallback。

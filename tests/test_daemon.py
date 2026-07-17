@@ -84,6 +84,8 @@ def test_usage_cache_round_trips_snapshot(tmp_path):
         d7_resets_at=1783526386,
         status="ok",
         generated_at=1783483642,
+        today_tokens=18_600_000,
+        last_7d_tokens=236_000_000,
     )
 
     save_cached_usage_snapshot(snapshot, path)

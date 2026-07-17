@@ -50,10 +50,12 @@ async def run_demo_usage(args: argparse.Namespace) -> int:
                 "v": 1,
                 "k": "usage",
                 "src": "codex",
-                "h5": args.h5,
-                "h5r": now + 73 * 60,
+                "h5": None if args.no_h5 else args.h5,
+                "h5r": None if args.no_h5 else now + 73 * 60,
                 "d7": args.d7,
                 "d7r": now + 3 * 24 * 60 * 60,
+                "td": args.today_tokens,
+                "t7": args.week_tokens,
                 "st": "ok",
                 "t": now,
             },
@@ -179,6 +181,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     usage = sub.add_parser("demo-usage", help="Queue a demo usage payload.")
     usage.add_argument("--h5", type=int, default=72)
     usage.add_argument("--d7", type=int, default=84)
+    usage.add_argument(
+        "--no-h5",
+        action="store_true",
+        help="Hide the 5h window and preview the token-activity layout.",
+    )
+    usage.add_argument("--today-tokens", type=int, default=18_600_000)
+    usage.add_argument("--week-tokens", type=int, default=236_000_000)
     usage.set_defaults(func=run_demo_usage)
 
     activity = sub.add_parser("demo-activity", help="Queue a demo running-task count.")

@@ -5,11 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%2B%20ESP32-24292f)](#兼容性与前置条件)
 
-CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量与任务完成提醒显示器。macOS 后台服务读取本机 Codex 用量，通过 BLE 同步到一台或多台桌面设备。
+CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活动与任务完成提醒显示器。macOS 后台服务读取本机 Codex 用量，通过 BLE 同步到一台或多台桌面设备。
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v2.0.2`](CHANGELOG.md)。
+当前稳定版本为 [`v2.1.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -23,10 +23,10 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量与任务完
 
 ## 主要功能
 
-- macOS 后台 daemon 定时读取 Codex 订阅剩余用量。
+- macOS 后台 daemon 定时读取 Codex 订阅剩余用量和每日 Token 活动。
 - 通过 BLE 蓝牙把用量和提醒发送到 Waveshare ESP32-S3-Touch-AMOLED-2.16。
 - 支持一台 Mac 同时驱动多台已登记的 CodexMeter；设备按稳定短 ID 自动发现和重连。
-- 正常状态显示 5h/7d 剩余百分比、电量和重置倒计时。
+- Codex 返回 5h 窗口时保持原有的 5h/7d 余量主页；只返回 7d 窗口时自动切换为今日/近7天 Token 活动与 7d 余量主页。
 - 正常状态底部用小蓝点显示当前有几个 Codex 任务正在运行。
 - Codex 任务完成后触发红、黄、绿全屏闪动，然后显示“任务完成！”和任务摘要。
 - 中间按键可切换屏幕关闭和亮屏，左/右按键可调节屏幕亮度。
@@ -162,6 +162,7 @@ tail -F ~/.codexmeter/codexmeter.log ~/.codexmeter/codexmeter.out.log ~/.codexme
 .venv/bin/codexmeterctl devices adopt A3F91C --alias Home
 .venv/bin/codexmeterctl demo-alert "构建任务已完成"
 .venv/bin/codexmeterctl demo-usage --h5 72 --d7 84
+.venv/bin/codexmeterctl demo-usage --no-h5 --today-tokens 18600000 --week-tokens 236000000
 .venv/bin/codexmeterctl demo-activity --count 2
 .venv/bin/codexmeterctl screen-on
 .venv/bin/codexmeterctl screen-off
@@ -182,23 +183,28 @@ daemon 通过本地 Codex App Server 读取订阅余量：
 3. 发送 `initialized`
 4. 读取 `account/read`
 5. 读取 `account/rateLimits/read`
+6. 尝试读取 `account/usage/read`
 
 当前只处理 `codex` 限额桶：
 
 - 300 分钟窗口映射为 `5h`
 - 10080 分钟窗口映射为 `7d`
 
+`account/usage/read` 的 `dailyUsageBuckets` 用于计算今日和包含今日在内的近 7 个自然日 Token 数。服务端尚未生成当天桶时，daemon 会只读取本机 `~/.codex/sessions` 中的 `token_count` 事件，以累计值增量补出今日数据并加入近7天；这个实时回退只覆盖当前 Mac，服务端当天桶出现后会自动改用账号级数据。该接口和本地事件均作为可选能力处理：不可用时限额刷新仍会继续，并优先保留上次成功取得的 Token 活动数据。
+
 daemon 不读取、不打印 Codex 登录 token。
 
 ## 屏幕显示
 
-正常状态：
+正常状态会按 Codex 实际返回的数据自动选择一种布局：
+
+- 存在 5h 窗口：保留原布局，顶部显示“剩余用量”，两张卡片分别显示 5h/7d 剩余百分比和重置倒计时。
+- 不存在 5h 窗口且 7d 数据有效：顶部显示“Token用量”，第一张卡片显示“今日用量”和“近7天”Token，第二张卡片显示“7d 额度剩余”和重置倒计时。
+
+两种布局共同包含：
 
 - 顶部左侧显示 Codex 标识。
-- 顶部中间显示“剩余用量”。
 - 顶部右侧显示电量百分比和电池图标，电池填充色会根据电量变为绿色、黄色或红色。
-- 第一张卡片显示 `5h 剩余` 百分比，以及 `HH:MM 后重置`。
-- 第二张卡片显示 `7d 剩余` 百分比，以及 `xd 后重置`。
 - 底部空白区域显示运行中 Codex 任务数：1 个任务显示 1 个小蓝点，2 个任务显示 2 个小蓝点；没有运行中任务时隐藏。
 - 中间按键短按可切换 AMOLED 亮屏和关闭；屏幕关闭时 BLE、任务计数、日志和用量刷新仍会继续运行。
 - 左/右按键短按分别降低/增加亮度；亮度范围为 10%-100%，每次调整 10%，调整后会显示 3 秒亮度进度条。
@@ -289,6 +295,7 @@ UV_CACHE_DIR="$PWD/.platformio/.cache/uv" \
 
 ```text
 demo_usage
+demo_token_usage
 demo_alert
 demo_activity
 demo_idle
@@ -314,8 +321,10 @@ log_clear
 也可以直接发送 BLE JSON payload 形状的消息：
 
 ```json
-{"v":1,"k":"usage","src":"codex","h5":72,"h5r":1783093200,"d7":84,"d7r":1783545600,"st":"ok","t":1783070000}
+{"v":1,"k":"usage","src":"codex","h5":72,"h5r":1783093200,"d7":84,"d7r":1783545600,"td":18600000,"t7":236000000,"st":"ok","t":1783070000}
 ```
+
+要直接预览 Token 活动布局，可令 `h5` / `h5r` 为 `null`，或在串口输入 `demo_token_usage`。
 
 ```json
 {"v":1,"k":"alert","id":"demo","title":"任务完成！","body":"Codex 已完成测试任务","t":1783070000}

@@ -1,3 +1,5 @@
+import datetime as dt
+
 from codexmeter.limits import (
     UsageSnapshot,
     UsageSnapshotStabilizer,
@@ -5,8 +7,11 @@ from codexmeter.limits import (
     WINDOW_7D_MINS,
     format_beijing_time,
     is_suspicious_initial_snapshot,
+    merge_missing_token_activity,
     normalize_limits,
+    token_activity_from_account_usage,
     usage_snapshot_from_rate_limits,
+    usage_snapshot_with_token_activity,
 )
 
 
@@ -65,6 +70,100 @@ def test_usage_snapshot_falls_back_to_single_rate_limits():
     assert snapshot.h5_resets_at is None
     assert snapshot.d7_remaining_percent == 98
     assert snapshot.d7_resets_at == 200
+
+
+def test_usage_snapshot_does_not_relabel_known_7d_window_as_h5():
+    response = {
+        "rateLimitsByLimitId": {
+            "codex": {
+                "limitId": "codex",
+                "primary": {
+                    "usedPercent": 3,
+                    "resetsAt": 1784234099,
+                    "windowDurationMins": WINDOW_7D_MINS,
+                },
+            }
+        }
+    }
+
+    snapshot = usage_snapshot_from_rate_limits(response, now=10)
+
+    assert snapshot.h5_remaining_percent is None
+    assert snapshot.h5_resets_at is None
+    assert snapshot.d7_remaining_percent == 97
+    assert snapshot.d7_resets_at == 1784234099
+
+
+def test_token_activity_sums_today_and_last_seven_days():
+    response = {
+        "dailyUsageBuckets": [
+            {"startDate": "2026-07-17", "tokens": 18_600_000},
+            {"startDate": "2026-07-16", "tokens": 100_000_000},
+            {"startDate": "2026-07-11", "tokens": 117_400_000},
+            {"startDate": "2026-07-10", "tokens": 999_000_000},
+            {"startDate": "bad-date", "tokens": 1},
+        ]
+    }
+
+    activity = token_activity_from_account_usage(
+        response,
+        today=dt.date(2026, 7, 17),
+    )
+
+    assert activity.today_tokens == 18_600_000
+    assert activity.last_7d_tokens == 236_000_000
+
+
+def test_token_activity_is_optional_and_can_reuse_cached_values():
+    snapshot = usage_snapshot_from_rate_limits(sample_response(), now=123)
+    cached = UsageSnapshot(
+        source="codex",
+        h5_remaining_percent=70,
+        h5_resets_at=1,
+        d7_remaining_percent=80,
+        d7_resets_at=2,
+        status="ok",
+        generated_at=100,
+        today_tokens=12,
+        last_7d_tokens=34,
+    )
+
+    without_activity = usage_snapshot_with_token_activity(
+        snapshot,
+        {"dailyUsageBuckets": None},
+    )
+    merged = merge_missing_token_activity(without_activity, cached)
+
+    assert merged.today_tokens == 12
+    assert merged.last_7d_tokens == 34
+
+
+def test_token_activity_uses_local_today_when_server_bucket_lags():
+    response = {
+        "dailyUsageBuckets": [
+            {"startDate": "2026-07-16", "tokens": 100},
+            {"startDate": "2026-07-15", "tokens": 200},
+        ]
+    }
+
+    activity = token_activity_from_account_usage(
+        response,
+        today=dt.date(2026, 7, 17),
+        today_tokens_fallback=50,
+    )
+
+    assert activity.today_tokens == 50
+    assert activity.last_7d_tokens == 350
+
+
+def test_token_activity_does_not_treat_missing_today_bucket_as_zero():
+    activity = token_activity_from_account_usage(
+        {"dailyUsageBuckets": [{"startDate": "2026-07-16", "tokens": 100}]},
+        today=dt.date(2026, 7, 17),
+    )
+
+    assert activity.today_tokens is None
+    assert activity.last_7d_tokens is None
 
 
 def test_usage_stabilizer_rejects_transient_d7_empty_window():

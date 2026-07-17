@@ -29,6 +29,16 @@ PayloadKind parse_payload(
     usage->h5_reset = doc["h5r"] | 0L;
     usage->d7_remaining = doc["d7"] | -1;
     usage->d7_reset = doc["d7r"] | 0L;
+    JsonVariant today_tokens = doc["td"];
+    usage->has_today_tokens =
+        !today_tokens.isNull() && today_tokens.is<uint64_t>();
+    usage->today_tokens =
+        usage->has_today_tokens ? today_tokens.as<uint64_t>() : 0;
+    JsonVariant last_7d_tokens = doc["t7"];
+    usage->has_last_7d_tokens =
+        !last_7d_tokens.isNull() && last_7d_tokens.is<uint64_t>();
+    usage->last_7d_tokens =
+        usage->has_last_7d_tokens ? last_7d_tokens.as<uint64_t>() : 0;
     usage->updated_at = doc["t"] | 0L;
     usage->received_ms = millis();
     copy_text(usage->status, sizeof(usage->status), doc["st"] | "ok");
@@ -86,6 +96,27 @@ void usage_apply_demo(UsageModel* usage) {
   usage->h5_reset = now + 73 * 60;
   usage->d7_remaining = 84;
   usage->d7_reset = now + 3 * 24 * 60 * 60;
+  usage->has_today_tokens = false;
+  usage->today_tokens = 0;
+  usage->has_last_7d_tokens = false;
+  usage->last_7d_tokens = 0;
+  usage->updated_at = now;
+  usage->received_ms = millis();
+  copy_text(usage->status, sizeof(usage->status), "ok");
+}
+
+void usage_apply_token_demo(UsageModel* usage) {
+  long now = time(nullptr);
+  if (now < 1000) now = 1783070000;
+  usage->valid = true;
+  usage->h5_remaining = -1;
+  usage->h5_reset = 0;
+  usage->d7_remaining = 97;
+  usage->d7_reset = now + 6 * 24 * 60 * 60;
+  usage->has_today_tokens = true;
+  usage->today_tokens = 18600000ULL;
+  usage->has_last_7d_tokens = true;
+  usage->last_7d_tokens = 236000000ULL;
   usage->updated_at = now;
   usage->received_ms = millis();
   copy_text(usage->status, sizeof(usage->status), "ok");

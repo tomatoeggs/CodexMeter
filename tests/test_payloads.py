@@ -22,6 +22,8 @@ def test_usage_payload_shape_and_size():
             d7_resets_at=1783545600,
             status="ok",
             generated_at=1783070000,
+            today_tokens=18_600_000,
+            last_7d_tokens=236_000_000,
         )
     )
     encoded = payload.to_json_bytes()
@@ -30,6 +32,8 @@ def test_usage_payload_shape_and_size():
     assert decoded["k"] == "usage"
     assert decoded["h5"] == 72
     assert decoded["d7"] == 84
+    assert decoded["td"] == 18_600_000
+    assert decoded["t7"] == 236_000_000
 
 
 def test_activity_payload_shape_and_size():
