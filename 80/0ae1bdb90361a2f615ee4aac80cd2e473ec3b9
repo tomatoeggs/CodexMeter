@@ -1,0 +1,21 @@
+README.md
+  s_533e259b8b339a::t_91e7d7a7fd9091 20-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "800ae1bdb90361a2f615ee4aac80cd2e473ec3b9",
+  "prompts": {},
+  "sessions": {
+    "s_533e259b8b339a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4262-5c28-71b0-8285-bc81e3f03d58",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
