@@ -166,6 +166,49 @@ def test_token_activity_does_not_treat_missing_today_bucket_as_zero():
     assert activity.last_7d_tokens is None
 
 
+def test_token_activity_prefers_local_today_when_server_diff_is_large():
+    activity = token_activity_from_account_usage(
+        {
+            "dailyUsageBuckets": [
+                {"startDate": "2026-07-17", "tokens": 4_313_694},
+                {"startDate": "2026-07-16", "tokens": 10_000_000},
+            ]
+        },
+        today=dt.date(2026, 7, 17),
+        today_tokens_fallback=74_840_676,
+    )
+
+    assert activity.today_tokens == 74_840_676
+    assert activity.last_7d_tokens == 84_840_676
+
+
+def test_token_activity_keeps_server_today_when_absolute_diff_is_small():
+    activity = token_activity_from_account_usage(
+        {
+            "dailyUsageBuckets": [
+                {"startDate": "2026-07-17", "tokens": 10_000_000},
+                {"startDate": "2026-07-16", "tokens": 5_000_000},
+            ]
+        },
+        today=dt.date(2026, 7, 17),
+        today_tokens_fallback=10_500_000,
+    )
+
+    assert activity.today_tokens == 10_000_000
+    assert activity.last_7d_tokens == 15_000_000
+
+
+def test_token_activity_keeps_server_today_when_relative_diff_is_small():
+    activity = token_activity_from_account_usage(
+        {"dailyUsageBuckets": [{"startDate": "2026-07-17", "tokens": 100_000_000}]},
+        today=dt.date(2026, 7, 17),
+        today_tokens_fallback=101_500_000,
+    )
+
+    assert activity.today_tokens == 100_000_000
+    assert activity.last_7d_tokens == 100_000_000
+
+
 def test_usage_stabilizer_rejects_transient_d7_empty_window():
     stabilizer = UsageSnapshotStabilizer()
     trusted = usage_snapshot(

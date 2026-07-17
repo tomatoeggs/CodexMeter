@@ -9,6 +9,8 @@ from typing import Any
 
 WINDOW_5H_MINS = 300
 WINDOW_7D_MINS = 7 * 24 * 60
+TOKEN_ACTIVITY_LOCAL_MIN_DIFF = 1_000_000
+TOKEN_ACTIVITY_LOCAL_REL_DIFF = 0.25
 USAGE_RECOVERY_CONFIRMATIONS = 2
 USAGE_REMAINING_JUMP_THRESHOLD = 25
 USAGE_RESET_GRACE_SEC = 60
@@ -286,9 +288,8 @@ def token_activity_from_account_usage(
     current_date = today if today is not None else dt.date.today()
     first_date = current_date - dt.timedelta(days=6)
     has_current_bucket = current_date in by_date
-    today_tokens = (
-        by_date[current_date] if has_current_bucket else today_tokens_fallback
-    )
+    server_today_tokens = by_date.get(current_date)
+    today_tokens = server_today_tokens if has_current_bucket else today_tokens_fallback
     last_7d_tokens = sum(
         tokens for day, tokens in by_date.items() if first_date <= day <= current_date
     )
@@ -297,10 +298,28 @@ def token_activity_from_account_usage(
             last_7d_tokens = None
         else:
             last_7d_tokens += today_tokens_fallback
+    elif (
+        server_today_tokens is not None
+        and today_tokens_fallback is not None
+        and _has_large_token_activity_difference(
+            server_today_tokens,
+            today_tokens_fallback,
+        )
+    ):
+        today_tokens = today_tokens_fallback
+        last_7d_tokens += today_tokens_fallback - server_today_tokens
     return TokenActivity(
         today_tokens=today_tokens,
         last_7d_tokens=last_7d_tokens,
     )
+
+
+def _has_large_token_activity_difference(server_tokens: int, local_tokens: int) -> bool:
+    difference = abs(server_tokens - local_tokens)
+    if difference < TOKEN_ACTIVITY_LOCAL_MIN_DIFF:
+        return False
+    relative_difference = difference / max(1, server_tokens, local_tokens)
+    return relative_difference >= TOKEN_ACTIVITY_LOCAL_REL_DIFF
 
 
 def usage_snapshot_with_token_activity(

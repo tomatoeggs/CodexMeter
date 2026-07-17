@@ -33,6 +33,8 @@ from .provider import CodexUsageProvider
 from .queueing import put_latest
 from .screen_policy import screen_policy_loop
 from .settings import (
+    ACTIVITY_SWEEP_INTERVAL_SEC,
+    ACTIVITY_TTL_SEC,
     APP_DIR,
     AUTO_SCREEN_TIMEOUT_SEC,
     BLE_ACK_TIMEOUT_SEC,
@@ -330,7 +332,12 @@ async def run_daemon(args: argparse.Namespace) -> None:
     def status_provider() -> dict[str, object]:
         return {"ble": manager.status()}
 
-    event_server = EventServer(sink, status_provider=status_provider)
+    event_server = EventServer(
+        sink,
+        status_provider=status_provider,
+        activity_ttl=args.activity_ttl,
+        activity_sweep_interval=args.activity_sweep_interval,
+    )
 
     await supervise(
         stop_event,
@@ -397,6 +404,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--auto-screen-timeout", type=float, default=AUTO_SCREEN_TIMEOUT_SEC)
     parser.add_argument("--lock-poll-interval", type=float, default=LOCK_POLL_INTERVAL_SEC)
+    parser.add_argument("--activity-ttl", type=float, default=ACTIVITY_TTL_SEC)
+    parser.add_argument(
+        "--activity-sweep-interval",
+        type=float,
+        default=ACTIVITY_SWEEP_INTERVAL_SEC,
+    )
     parser.add_argument("--device-name", default="CodexMeter")
     parser.add_argument("--refresh-token", action="store_true")
     parser.add_argument("--log-level", default="INFO")

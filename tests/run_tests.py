@@ -18,6 +18,7 @@ TEST_MODULES = [
     "tests.test_provider",
     "tests.test_local_usage",
     "tests.test_events",
+    "tests.test_transcripts",
     "tests.test_screen_policy",
     "tests.test_daemon",
     "tests.test_ble",

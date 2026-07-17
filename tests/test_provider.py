@@ -1,4 +1,5 @@
 import asyncio
+import datetime as dt
 from unittest.mock import patch
 
 from codexmeter.app_server import AppServerError
@@ -55,6 +56,22 @@ class FakeLocalUsageReader:
         return 123
 
 
+class MismatchedUsageClient(FakeClient):
+    async def request(self, method, _params=None):
+        if method == "account/usage/read":
+            return {
+                "dailyUsageBuckets": [
+                    {"startDate": dt.date.today().isoformat(), "tokens": 4_313_694}
+                ]
+            }
+        return await super().request(method, _params)
+
+
+class LargeLocalUsageReader:
+    def read_today_tokens(self):
+        return 74_840_676
+
+
 def test_provider_fetches_optional_token_activity_without_inventing_h5():
     FakeClient.fail_usage = False
     with patch("codexmeter.provider.JsonRpcClient", FakeClient):
@@ -82,3 +99,39 @@ def test_provider_keeps_quota_when_token_activity_request_fails():
     assert snapshot.d7_remaining_percent == 97
     assert snapshot.today_tokens == 123
     assert snapshot.last_7d_tokens is None
+
+
+def test_provider_logs_daily_bucket_diagnostics_only_when_buckets_change():
+    FakeClient.fail_usage = False
+    provider = CodexUsageProvider(local_usage_reader=FakeLocalUsageReader())
+
+    with (
+        patch("codexmeter.provider.JsonRpcClient", FakeClient),
+        patch("codexmeter.provider.LOGGER.info") as info,
+    ):
+        asyncio.run(provider.fetch())
+        asyncio.run(provider.fetch())
+
+    info.assert_called_once()
+    message = info.call_args.args[0]
+    assert "observed_utc=%s" in message
+    assert "observed_local=%s" in message
+    assert "server_utc_today=%s" in message
+    assert "server_local_today=%s" in message
+    assert "local_today=%s" in message
+    assert "difference=%s" in message
+    assert "selected=%s" in message
+
+
+def test_provider_warns_once_when_large_difference_selects_local_value():
+    provider = CodexUsageProvider(local_usage_reader=LargeLocalUsageReader())
+
+    with (
+        patch("codexmeter.provider.JsonRpcClient", MismatchedUsageClient),
+        patch("codexmeter.provider.LOGGER.warning") as warning,
+    ):
+        asyncio.run(provider.fetch())
+        asyncio.run(provider.fetch())
+
+    warning.assert_called_once()
+    assert warning.call_args.args[-1] == "local_mismatch"

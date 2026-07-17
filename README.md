@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v2.1.0`](CHANGELOG.md)。
+当前稳定版本为 [`v2.2.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -150,6 +150,12 @@ CODEX_BIN=/path/to/codex ./install-mac.sh
 - 写入用户级 LaunchAgent：`com.user.codexmeter`。
 - 安装 Codex `UserPromptSubmit` 和 `Stop` hook 到 `~/.codex/hooks.json`，安装前会备份已有文件。
 
+运行中任务通常由 `Stop` hook 结束。对于暂停或中断时不触发 `Stop` 的情况，daemon 会以只读、增量方式监听 start hook 提供的 Codex transcript；识别到当前 `turn_id` 的中断记录后会及时清除活动指示。transcript 不可用、格式未知或读取失败时会静默跳过，不影响正常 hook、用量刷新和 BLE 通信。
+
+`codexmeterctl status` 的 `activity` 字段会显示当前运行任务数、transcript 监听数和涉及的文件数，便于确认中断恢复链路是否正在工作。
+
+每个运行中任务还拥有独立的活动租约。transcript 有任何新增内容都会续租；如果 Hook 和 transcript 同时失效，任务连续 60 分钟没有活动后会被 daemon 自动清理。daemon 每 30 秒检查一次，过期只更新活动指示，不会生成任务完成提醒。`activity.oldest_age_sec` 和 `activity.next_expiry_sec` 分别显示最老任务年龄及最近租约的剩余时间。可通过 `codexmeterd --activity-ttl <秒>` 调整，设置为 `0` 可关闭 TTL。
+
 常用命令：
 
 以下命令默认在项目根目录执行；如果已经激活 `.venv`，也可以直接使用 `codexmeterctl`。
@@ -190,7 +196,7 @@ daemon 通过本地 Codex App Server 读取订阅余量：
 - 300 分钟窗口映射为 `5h`
 - 10080 分钟窗口映射为 `7d`
 
-`account/usage/read` 的 `dailyUsageBuckets` 用于计算今日和包含今日在内的近 7 个自然日 Token 数。服务端尚未生成当天桶时，daemon 会只读取本机 `~/.codex/sessions` 中的 `token_count` 事件，以累计值增量补出今日数据并加入近7天；这个实时回退只覆盖当前 Mac，服务端当天桶出现后会自动改用账号级数据。该接口和本地事件均作为可选能力处理：不可用时限额刷新仍会继续，并优先保留上次成功取得的 Token 活动数据。
+`account/usage/read` 的 `dailyUsageBuckets` 用于计算今日和包含今日在内的近 7 个自然日 Token 数。服务端尚未生成当天桶时，daemon 会只读取本机 `~/.codex/sessions` 中的 `token_count` 事件，以累计值增量补出今日数据并加入近7天；这个实时回退只覆盖当前 Mac。服务端当天桶出现后会与本机值比较：差异小则使用账号级数据；差异同时达到 100 万 Token 和 25% 时，以本机今日值为准，并替换近7天合计中的当天部分。daemon 会在每日桶或数据源选择变化时记录 UTC/本地观察时间、最近的服务端桶、差值和最终数据源，便于后续判断服务端的自然日边界。该接口和本地事件均作为可选能力处理：不可用时限额刷新仍会继续，并优先保留上次成功取得的 Token 活动数据。
 
 daemon 不读取、不打印 Codex 登录 token。
 

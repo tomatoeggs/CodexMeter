@@ -1,0 +1,137 @@
+import asyncio
+import json
+
+from codexmeter.transcripts import TranscriptWatcher
+
+
+def _row(event_type, turn_id):
+    return json.dumps(
+        {
+            "timestamp": "2026-07-17T10:00:00Z",
+            "type": "event_msg",
+            "payload": {"type": event_type, "turn_id": turn_id},
+        },
+        separators=(",", ":"),
+    )
+
+
+def test_watcher_ignores_history_and_detects_appended_turn_end(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "turn.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.write_text(_row("task_complete", "old") + "\n", encoding="utf-8")
+        ended = []
+
+        async def on_ended(turn_id, event_type):
+            ended.append((turn_id, event_type))
+
+        watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+        assert watcher.watch("current", str(transcript)) is True
+        await watcher.scan_once()
+        assert ended == []
+
+        with transcript.open("a", encoding="utf-8") as handle:
+            handle.write(_row("turn_aborted", "current") + "\n")
+        await watcher.scan_once()
+
+        assert ended == [("current", "turn_aborted")]
+
+    asyncio.run(scenario())
+
+
+def test_watcher_waits_for_complete_jsonl_row(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "turn.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.touch()
+        ended = []
+
+        async def on_ended(turn_id, event_type):
+            ended.append((turn_id, event_type))
+
+        watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+        watcher.watch("turn-a", str(transcript))
+        row = _row("turn_aborted", "turn-a")
+        with transcript.open("a", encoding="utf-8") as handle:
+            handle.write(row[: len(row) // 2])
+        await watcher.scan_once()
+        assert ended == []
+
+        with transcript.open("a", encoding="utf-8") as handle:
+            handle.write(row[len(row) // 2 :] + "\n")
+        await watcher.scan_once()
+
+        assert ended == [("turn-a", "turn_aborted")]
+
+    asyncio.run(scenario())
+
+
+def test_watcher_tracks_multiple_turns_in_one_transcript(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "thread.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.touch()
+        ended = []
+
+        async def on_ended(turn_id, event_type):
+            ended.append((turn_id, event_type))
+
+        watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+        watcher.watch("turn-a", str(transcript))
+        watcher.watch("turn-b", str(transcript))
+        with transcript.open("a", encoding="utf-8") as handle:
+            handle.write(_row("turn_aborted", "turn-a") + "\n")
+            handle.write("{malformed}\n")
+            handle.write(_row("task_complete", "turn-b") + "\n")
+
+        await watcher.scan_once()
+
+        assert ended == [
+            ("turn-a", "turn_aborted"),
+            ("turn-b", "task_complete"),
+        ]
+
+    asyncio.run(scenario())
+
+
+def test_watcher_rejects_paths_outside_codex_home(tmp_path):
+    async def on_ended(_turn_id, _event_type):
+        raise AssertionError("untrusted transcript must not be read")
+
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    outside = tmp_path / "outside.jsonl"
+    outside.touch()
+    watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+
+    assert watcher.watch("turn-a", str(outside)) is False
+
+
+def test_watcher_reports_any_transcript_append_as_activity(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "turn.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.touch()
+        observed = []
+
+        async def on_ended(_turn_id, _event_type):
+            pass
+
+        watcher = TranscriptWatcher(
+            on_ended,
+            codex_home=codex_home,
+            turns_active=lambda turn_ids: observed.append(turn_ids),
+        )
+        watcher.watch("turn-a", str(transcript))
+        with transcript.open("a", encoding="utf-8") as handle:
+            handle.write("{malformed}\n")
+
+        await watcher.scan_once()
+
+        assert observed == [{"turn-a"}]
+
+    asyncio.run(scenario())

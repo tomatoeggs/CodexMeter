@@ -35,6 +35,7 @@ def send_task_start(hook_input: dict[str, Any]) -> None:
         "turn_id": hook_input.get("turn_id"),
         "task_id": hook_input.get("task_id"),
         "cwd": hook_input.get("cwd"),
+        "transcript_path": hook_input.get("transcript_path"),
     }
     send_event(event)
 

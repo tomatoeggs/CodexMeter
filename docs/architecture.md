@@ -19,7 +19,8 @@
 - `codexmeter.device_registry`：负责读取和维护 `~/.codexmeter/devices.json`，用稳定短 ID 管理已登记设备。
 - `codexmeter.multi_ble`：负责合并 BLE 广播和 macOS CoreBluetooth 已连接外设、为每台已登记设备创建独立 worker，并把上游 payload fan-out 到每台设备队列。
 - `codexmeter.ble`：负责单个 BLE 外设会话的连接、notify 订阅、写入、ACK 校验和健康检查。
-- `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hooks 与 `codexmeterctl` 使用；同时维护运行中任务集合。
+- `codexmeter.events`：负责本地 Unix socket 事件入口，供 Codex hooks 与 `codexmeterctl` 使用；同时维护运行中任务集合、独立活动租约和 TTL 清理循环。
+- `codexmeter.transcripts`：按路径和字节偏移增量监听当前任务 transcript，以 `turn_id` 识别完成或中断；该模块是可静默降级的活动状态加速层。
 - `codexmeter.screen_policy`：负责 macOS 锁屏状态轮询、自动亮屏/关屏状态机和 BLE 重连亮屏策略。
 - `hooks/codexmeter_start_hook.py`：负责接收 Codex `UserPromptSubmit` hook 输入，通知 daemon 有任务开始运行。
 - `hooks/codexmeter_stop_hook.py`：负责接收 Codex `Stop` hook 输入、生成短摘要并静默通知 daemon；异常时仍成功退出，不阻塞 Codex。
@@ -40,24 +41,25 @@
 ## 数据流
 
 1. daemon 每 60 秒拉取 Codex App Server 限额，并尝试读取每日 Token 活动。
-2. daemon 将 `codex` 限额归一化为 `UsageSnapshot`，按自然日汇总今日/近7天 Token。服务端当天桶缺失时，以当前 Mac 的 session token 增量补齐今日和近7天；服务端当天桶出现后优先使用账号级值。可选数据源失败时复用缓存值，再生成 `usage` payload 放入发送队列。
+2. daemon 将 `codex` 限额归一化为 `UsageSnapshot`，按自然日汇总今日/近7天 Token。服务端当天桶缺失时，以当前 Mac 的 session token 增量补齐今日和近7天；服务端当天桶出现后与本机今日值比较，差异同时达到 100 万 Token 和 25% 时优先本机值，并替换近7天合计中的当天部分。每日桶或数据源选择变化时记录 UTC/本地观察时间、最近桶、差值和最终数据源。可选数据源失败时复用缓存值，再生成 `usage` payload 放入发送队列。
 3. BLE discovery 按 service UUID 和 `CodexMeter-<short_id>` 广播名持续发现附近设备；macOS 上还会合并 `retrieveConnectedPeripheralsWithServices` 返回的已连接外设，以覆盖残留连接导致设备停止广播的情况。worker 连接后先读取 identity characteristic，校验完整芯片 ID，再写入 RX characteristic。
 4. 固件解析 `usage`；存在 5h 窗口时显示原有双余量卡片，只返回有效 7d 窗口时显示 Token 活动与 7d 余量卡片。重置倒计时用 `t` 加设备本地经过时间计算：
    - 5h 显示为 `HH:MM 后重置`
    - 7d 显示为 `xd 后重置`
 5. 若 180 秒没有新用量，固件将状态标记为 `stale`，并等待下一次 daemon 更新或设备刷新请求。
-6. Codex `UserPromptSubmit` hook 触发时，start hook 通过 Unix socket 向 daemon 发送 `task_start`。
-7. daemon 用 `session_id`、`turn_id` 或 `cwd` 推导任务 key，维护运行中任务集合；计数变化时生成 `activity` payload。
-8. 固件收到 `activity` 后，在正常页底部居中显示对应数量的小蓝点；计数为 0 时隐藏。
-9. Codex turn 完成时触发用户级 `Stop` hook；Stop hook 从 `last_assistant_message` 中生成不超过 96 字符的短摘要。
-10. Stop hook 只发送一次 `task_complete` 事件。daemon 在同一个事件处理中先清除运行中任务，再构造 `alert` payload。
-11. daemon 会同时发送 `activity` payload，并把完成后的 `run` 数量写入 `alert` payload，避免 BLE 连续写入丢失时小蓝点残留。
-12. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
-13. 固件 BLE RX 使用小队列缓存连续 payload；收到携带 `run` 的 `alert` 时，会在显示提醒前同步更新活动任务数。
-14. daemon 在收到设备 ACK 前保留告警 in-flight，断连后自动重试；固件缓存最近的告警 ID 并对重试去重。
-15. 固件收到新 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
-16. 用户可按中间按键切换 AMOLED 亮屏和关闭；提醒显示时关屏会同时关闭当前提醒。
-17. 用户可按左/右按键降低/增加亮度，固件显示 3 秒亮度进度条。
+6. Codex `UserPromptSubmit` hook 触发时，start hook 通过 Unix socket 向 daemon 发送 `task_start`，并附带 Codex 提供的 `transcript_path`。
+7. daemon 优先用 `turn_id`，其次用 `task_id`、`session_id` 或 `conversation_id` 维护运行中任务集合；计数变化时生成 `activity` payload。
+8. daemon 从注册时的文件末尾增量读取受信任的 Codex transcript。任何新增内容都会刷新对应任务的 `last_seen_at`；发现当前 `turn_id` 的 `turn_aborted` 或 `task_complete` 时，只提前清除活动状态，不生成完成提醒。路径、读取或解析失败会静默降级到 hook 和 TTL 路径。
+9. 固件收到 `activity` 后，在正常页底部居中显示对应数量的小蓝点；计数为 0 时隐藏。
+10. Codex turn 完成时触发用户级 `Stop` hook；Stop hook 从 `last_assistant_message` 中生成不超过 96 字符的短摘要。
+11. Stop hook 只发送一次 `task_complete` 事件。daemon 在同一个事件处理中先幂等地清除运行中任务，再构造 `alert` payload。
+12. daemon 会同时发送 `activity` payload，并把完成后的 `run` 数量写入 `alert` payload，避免 BLE 连续写入丢失时小蓝点残留。
+13. daemon 构造 `alert` payload 时会清洗 Markdown、过滤设备字库不支持的字符，并限制 payload 在 512 bytes 内。
+14. 固件 BLE RX 使用小队列缓存连续 payload；收到携带 `run` 的 `alert` 时，会在显示提醒前同步更新活动任务数。
+15. daemon 在收到设备 ACK 前保留告警 in-flight，断连后自动重试；固件缓存最近的告警 ID 并对重试去重。
+16. 固件收到新 `alert` 后先隐藏文字并红、黄、绿全屏闪动；闪动结束后显示“任务完成！”和 28px 正文摘要，文字出现后默认停留 8 秒。
+17. 用户可按中间按键切换 AMOLED 亮屏和关闭；提醒显示时关屏会同时关闭当前提醒。
+18. 用户可按左/右按键降低/增加亮度，固件显示 3 秒亮度进度条。
 
 ## 屏幕电源控制链路
 
@@ -222,6 +224,8 @@ GATT UUID：
 
 - BLE payload 控制在 512 bytes 内。
 - 多设备场景下，每台设备拥有独立 BLE 队列、ACK 状态、失败计数和重连 backoff；任一设备异常不阻塞其他设备。
+- transcript 监听只接受 `CODEX_HOME` 内路径，从注册时的文件末尾开始增量读取，并限制单次读取和单行缓冲大小；任何异常都不影响事件服务主路径。
+- 活动任务 TTL 默认为 60 分钟无活动，检查间隔为 30 秒；使用单调时钟，任务独立过期，延迟到达的结束事件按已结束历史幂等处理。`--activity-ttl 0` 可关闭。
 - alert 正文在 macOS 端先限制为 210 bytes，再由整体 payload 编码器做最终兜底裁剪。
 - 固件 alert 正文缓冲区为 240 bytes，标题缓冲区为 48 bytes。
 - 固件 BLE RX 队列可缓存 6 个 payload，避免连续写入时后一个 payload 覆盖前一个。

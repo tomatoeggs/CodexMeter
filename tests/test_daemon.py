@@ -6,6 +6,7 @@ from codexmeter.daemon import (
     build_stale_usage_payload,
     build_file_handler,
     load_cached_usage_snapshot,
+    parse_args,
     put_latest,
     save_cached_usage_snapshot,
 )
@@ -129,3 +130,12 @@ def test_log_handler_keeps_current_and_backup_within_total_limit(tmp_path):
         assert handler.backupCount == 1
     finally:
         handler.close()
+
+
+def test_activity_ttl_defaults_and_can_be_disabled():
+    defaults = parse_args([])
+    disabled = parse_args(["--activity-ttl", "0"])
+
+    assert defaults.activity_ttl == 3600
+    assert defaults.activity_sweep_interval == 30
+    assert disabled.activity_ttl == 0
