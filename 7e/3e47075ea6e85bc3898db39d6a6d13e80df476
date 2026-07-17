@@ -1,0 +1,57 @@
+codexmeter/cli.py
+  s_b51e13944c07e8::t_6d542c85ad92b7 53-54,57-58,184-190
+codexmeter/daemon.py
+  s_b51e13944c07e8::t_75eb502fd14e3d 27,98,103-104,114-117,158,163-164,223-224,243-244
+codexmeter/limits.py
+  s_b51e13944c07e8::t_b9b9b0009a4653 42-49,232-238,256-346
+codexmeter/local_usage.py
+  s_b51e13944c07e8::t_02bd148148d842 1-175
+codexmeter/payloads.py
+  s_b51e13944c07e8::t_498667ff2cbe75 41-42
+codexmeter/provider.py
+  s_b51e13944c07e8::t_54e6f49b9fba60 5-6,8-14,24-28,35-63
+docs/architecture.md
+  s_b51e13944c07e8::t_dfdabd04e32e63 5,16-17,42-43,45,125,134,136-137,148,170,202,204
+firmware/include/config.h
+  s_b51e13944c07e8::t_95c64c60abe45b 42,44
+firmware/src/codexmeter_montserrat_medium_ttf.inc
+  s_b51e13944c07e8::t_2fe4556b802ebf 1-20268
+firmware/src/main.cpp
+  s_b51e13944c07e8::t_2161e4cffb1192 295-300,424-428
+firmware/src/model.cpp
+  s_b51e13944c07e8::t_c90192663f3b1b 32-41,99-119
+firmware/src/model.h
+  s_b51e13944c07e8::t_9e46e52c183767 11-14,59
+firmware/src/ui.cpp
+  s_b51e13944c07e8::t_e34512b6cd66ca 12-13,23,26-29,41,50,72-73,131-135,167-170,173-174,176-178,212-213,443-493,554-556,558,560,563-586,589-590,623,626-631
+tests/run_tests.py
+  s_b51e13944c07e8::t_b8ad59f4974db3 18-19
+tests/test_daemon.py
+  s_b51e13944c07e8::t_8ed5ad92252378 87-88
+tests/test_limits.py
+  s_b51e13944c07e8::t_d79cf4af0bc7a6 1-2,10,12,14,75-168
+tests/test_local_usage.py
+  s_b51e13944c07e8::t_a2cb11e3c45cdd 1-89
+tests/test_payloads.py
+  s_b51e13944c07e8::t_9b170afa6ec21a 25-26,35-36
+tests/test_provider.py
+  s_b51e13944c07e8::t_b3cbeb88ed349b 1-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7e3e47075ea6e85bc3898db39d6a6d13e80df476",
+  "prompts": {},
+  "sessions": {
+    "s_b51e13944c07e8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ab5-a066-7462-b476-ec7a1b8d14b2",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
