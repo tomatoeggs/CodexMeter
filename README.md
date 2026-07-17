@@ -17,9 +17,9 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 <p align="center"><em>CodexMeter 实物运行效果</em></p>
 
-| 用量主页 | 任务完成提醒 |
-| --- | --- |
-| ![CodexMeter 用量主页](docs/assets/dashboard.png) | ![CodexMeter 四行任务完成摘要](docs/assets/task-complete.png) |
+| Token 活动主页（新版） | 5h/7d 余量主页 | 任务完成提醒 |
+| --- | --- | --- |
+| ![CodexMeter 新版 Token 活动主页](docs/assets/token-dashboard.png) | ![CodexMeter 5h 和 7d 余量主页](docs/assets/dashboard.png) | ![CodexMeter 四行任务完成摘要](docs/assets/task-complete.png) |
 
 ## 主要功能
 
