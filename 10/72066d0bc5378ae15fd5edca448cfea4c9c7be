@@ -1,0 +1,29 @@
+codexmeter/daemon.py
+  s_63e842c762ea45::t_5f5f48407d6311 340
+codexmeter/events.py
+  s_63e842c762ea45::t_39f7f4fc85023c 222,229,333-350
+codexmeter/transcripts.py
+  s_63e842c762ea45::t_aeaf79b8b6834a 19,21-23,26,68-73,138-167,260-276,278-308,321,326-335
+tests/test_events.py
+  s_63e842c762ea45::t_092047e5a2fb54 276-335
+tests/test_transcripts.py
+  s_63e842c762ea45::t_a98865c1f0e6ae 18-28,174-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1072066d0bc5378ae15fd5edca448cfea4c9c7be",
+  "prompts": {},
+  "sessions": {
+    "s_63e842c762ea45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f373f-5802-7082-b6ad-497a45843699",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
