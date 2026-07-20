@@ -1,0 +1,35 @@
+codexmeter/cli.py
+  s_63e842c762ea45::t_b5b5e173a3d035 31
+codexmeter/events.py
+  s_63e842c762ea45::t_18d8e3af68e438 288-290,432-437,456,464-473
+codexmeter/transcripts.py
+  s_63e842c762ea45::t_460cb0ca343fbf 22,113-118,120-121,204-218
+hooks/codexmeter_start_hook.py
+  s_63e842c762ea45::t_7df15453864395 15-17,33-34,48-103
+hooks/codexmeter_stop_hook.py
+  s_63e842c762ea45::t_971ec9549bcfc1 20-22,42-44,81-134
+tests/test_events.py
+  s_63e842c762ea45::t_87fd561da90e2b 237-275,560-589
+tests/test_hook.py
+  s_63e842c762ea45::t_feea1d8a9e0b41 3,75-164,203-260
+tests/test_transcripts.py
+  s_63e842c762ea45::t_18d1ce6ba3b988 43-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9e2ab237db00c035db4d6dce03d716cf23a1a4b2",
+  "prompts": {},
+  "sessions": {
+    "s_63e842c762ea45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f373f-5802-7082-b6ad-497a45843699",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
