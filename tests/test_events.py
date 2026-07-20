@@ -234,6 +234,45 @@ def test_transcript_finish_is_idempotent_with_later_stop(tmp_path):
     asyncio.run(scenario())
 
 
+def test_transcript_finish_reconciles_when_end_event_already_exists(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "thread.jsonl"
+        transcript.parent.mkdir(parents=True)
+        row = {
+            "type": "event_msg",
+            "payload": {"type": "task_complete", "turn_id": "turn-a"},
+        }
+        transcript.write_text(
+            json.dumps(row, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(sink, transcript_root=codex_home)
+        await server._dispatch(
+            {
+                "type": "task_start",
+                "session_id": "session-a",
+                "turn_id": "turn-a",
+                "transcript_path": str(transcript),
+            }
+        )
+
+        assert server.activity.count == 1
+
+        await server.transcripts.scan_once()
+
+        assert server.activity.count == 0
+        assert [payload.kind for payload in payloads] == ["activity", "activity"]
+        assert payloads[-1].data["run"] == 0
+
+    asyncio.run(scenario())
+
+
 def test_activity_ttl_expires_only_stale_tasks_and_late_stop_is_safe():
     async def scenario():
         payloads = []
@@ -516,5 +555,35 @@ def test_activity_status_reports_age_and_next_expiry():
 
         assert status["oldest_age_sec"] == 40
         assert status["next_expiry_sec"] == 30
+
+    asyncio.run(scenario())
+
+
+def test_ping_can_include_activity_task_details():
+    async def scenario():
+        async def sink(_payload):
+            pass
+
+        server = EventServer(sink, activity_ttl=60)
+        await server._dispatch(
+            {
+                "type": "task_start",
+                "session_id": "session-a",
+                "turn_id": "turn-a",
+            }
+        )
+
+        result = await server._dispatch(
+            {"type": "ping", "include_activity_tasks": True}
+        )
+
+        activity = result["activity"]
+        assert activity["running"] == 1
+        assert activity["tasks"][0]["aliases"] == [
+            "session_id:session-a",
+            "turn_id:turn-a",
+        ]
+        assert activity["tasks"][0]["age_sec"] >= 0
+        assert activity["tasks"][0]["idle_sec"] >= 0
 
     asyncio.run(scenario())

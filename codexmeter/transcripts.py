@@ -19,6 +19,7 @@ TurnsActive = Callable[[set[str]], None]
 _END_EVENT_TYPES = frozenset({"task_complete", "turn_aborted"})
 _MAX_READ_BYTES = 1024 * 1024
 _MAX_LINE_BYTES = 1024 * 1024
+_RECONCILE_TAIL_BYTES = 512 * 1024
 
 
 @dataclass
@@ -109,12 +110,15 @@ class TranscriptWatcher:
 
         cursor = self._cursors.get(path)
         if cursor is None:
-            try:
-                offset = path.stat().st_size
-            except OSError:
-                offset = 0
-            cursor = _Cursor(path=path, offset=offset)
+            offset = self._reconcile_offset(path)
+            cursor = _Cursor(
+                path=path,
+                offset=offset,
+                discard_until_newline=offset > 0,
+            )
             self._cursors[path] = cursor
+        else:
+            self._rewind_for_reconcile(cursor)
         cursor.turn_ids.add(normalized_turn_id)
         self._paths_by_turn[normalized_turn_id] = path
         log.debug("Watching transcript turn=%s path=%s", normalized_turn_id, path)
@@ -196,6 +200,21 @@ class TranscriptWatcher:
         except (OSError, RuntimeError, ValueError):
             return None
         return path
+
+    def _reconcile_offset(self, path: Path) -> int:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return 0
+        return max(0, size - _RECONCILE_TAIL_BYTES)
+
+    def _rewind_for_reconcile(self, cursor: _Cursor) -> None:
+        offset = self._reconcile_offset(cursor.path)
+        if offset >= cursor.offset:
+            return
+        cursor.offset = offset
+        cursor.buffer = b""
+        cursor.discard_until_newline = offset > 0
 
 
 def _parse_turn_end(line: bytes) -> tuple[str, str] | None:

@@ -285,7 +285,9 @@ class EventServer:
             response: dict[str, Any] = {
                 "ok": True,
                 "status": "running",
-                "activity": self._activity_status(),
+                "activity": self._activity_status(
+                    include_tasks=bool(event.get("include_activity_tasks"))
+                ),
             }
             if self.status_provider is not None:
                 response.update(self.status_provider())
@@ -427,7 +429,12 @@ class EventServer:
         )
         return len(expired)
 
-    def _activity_status(self, now: float | None = None) -> dict[str, Any]:
+    def _activity_status(
+        self,
+        now: float | None = None,
+        *,
+        include_tasks: bool = False,
+    ) -> dict[str, Any]:
         checked_at = time.monotonic() if now is None else now
         tasks = tuple(self.activity.active_tasks.values())
         oldest_age = (
@@ -446,7 +453,7 @@ class EventServer:
             if tasks and self.activity_ttl > 0
             else None
         )
-        return {
+        status: dict[str, Any] = {
             "running": self.activity.count,
             "transcript_watches": self.transcripts.watch_count,
             "transcript_files": self.transcripts.file_count,
@@ -454,6 +461,16 @@ class EventServer:
             "oldest_age_sec": round(oldest_age, 1) if oldest_age is not None else None,
             "next_expiry_sec": round(next_expiry, 1) if next_expiry is not None else None,
         }
+        if include_tasks:
+            status["tasks"] = [
+                {
+                    "aliases": sorted(task.aliases),
+                    "age_sec": round(max(0.0, checked_at - task.started_at), 1),
+                    "idle_sec": round(max(0.0, checked_at - task.last_seen_at), 1),
+                }
+                for task in sorted(tasks, key=lambda item: item.started_at)
+            ]
+        return status
 
     def _unwatch_task(self, task: ActiveTask | None) -> None:
         if task is None:

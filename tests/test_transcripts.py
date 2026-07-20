@@ -40,6 +40,56 @@ def test_watcher_ignores_history_and_detects_appended_turn_end(tmp_path):
     asyncio.run(scenario())
 
 
+def test_watcher_reconciles_existing_end_for_watched_turn(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "turn.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.write_text(
+            _row("task_complete", "turn-a") + "\n",
+            encoding="utf-8",
+        )
+        ended = []
+
+        async def on_ended(turn_id, event_type):
+            ended.append((turn_id, event_type))
+
+        watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+        watcher.watch("turn-a", str(transcript))
+        await watcher.scan_once()
+
+        assert ended == [("turn-a", "task_complete")]
+
+    asyncio.run(scenario())
+
+
+def test_watcher_rewinds_when_turn_is_registered_late(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "thread.jsonl"
+        transcript.parent.mkdir(parents=True)
+        transcript.touch()
+        ended = []
+
+        async def on_ended(turn_id, event_type):
+            ended.append((turn_id, event_type))
+
+        watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+        watcher.watch("turn-a", str(transcript))
+        with transcript.open("a", encoding="utf-8") as handle:
+            handle.write(_row("task_complete", "turn-b") + "\n")
+
+        await watcher.scan_once()
+        assert ended == []
+
+        watcher.watch("turn-b", str(transcript))
+        await watcher.scan_once()
+
+        assert ended == [("turn-b", "task_complete")]
+
+    asyncio.run(scenario())
+
+
 def test_watcher_waits_for_complete_jsonl_row(tmp_path):
     async def scenario():
         codex_home = tmp_path / ".codex"

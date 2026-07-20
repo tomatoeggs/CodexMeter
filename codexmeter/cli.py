@@ -28,7 +28,7 @@ async def run_once(args: argparse.Namespace) -> int:
 
 
 async def run_status(_args: argparse.Namespace) -> int:
-    result = await send_event({"type": "ping"})
+    result = await send_event({"type": "ping", "include_activity_tasks": True})
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("ok") else 1
 

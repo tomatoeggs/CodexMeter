@@ -17,6 +17,9 @@ from typing import Any
 
 
 DEFAULT_SOCKET = Path.home() / ".codexmeter" / "events.sock"
+INTERNAL_THREAD_SOURCES = frozenset({"subagent"})
+MAX_META_SCAN_LINES = 64
+MAX_META_LINE_BYTES = 1024 * 1024
 
 
 def main() -> int:
@@ -36,6 +39,9 @@ def main() -> int:
 
 
 def notify_stop(hook_input: dict[str, Any]) -> None:
+    if should_suppress_alert(hook_input):
+        send_task_finish(hook_input)
+        return
     message = str(hook_input.get("last_assistant_message") or "")
     if looks_like_task_descriptor(message):
         send_task_finish(hook_input)
@@ -70,6 +76,60 @@ def looks_like_task_descriptor(message: str) -> bool:
     title = title.strip()
     description = description.strip()
     return bool(title and description and len(title) <= 120 and len(description) <= 400)
+
+
+def should_suppress_alert(hook_input: dict[str, Any]) -> bool:
+    if is_internal_task_context(hook_input):
+        return True
+    metadata = read_transcript_metadata(hook_input.get("transcript_path"))
+    return metadata is not None and is_internal_task_context(metadata)
+
+
+def is_internal_task_context(context: dict[str, Any]) -> bool:
+    thread_source = context.get("thread_source")
+    if (
+        isinstance(thread_source, str)
+        and thread_source.strip().lower() in INTERNAL_THREAD_SOURCES
+    ):
+        return True
+
+    source = context.get("source")
+    return isinstance(source, dict) and source.get("subagent") is not None
+
+
+def read_transcript_metadata(transcript_path: object) -> dict[str, Any] | None:
+    path = trusted_transcript_path(transcript_path)
+    if path is None:
+        return None
+    try:
+        with path.open("rb") as handle:
+            for _ in range(MAX_META_SCAN_LINES):
+                line = handle.readline(MAX_META_LINE_BYTES + 1)
+                if not line:
+                    break
+                if len(line) > MAX_META_LINE_BYTES or b"session_meta" not in line:
+                    continue
+                row = json.loads(line)
+                if not isinstance(row, dict) or row.get("type") != "session_meta":
+                    continue
+                payload = row.get("payload")
+                return payload if isinstance(payload, dict) else None
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return None
+
+
+def trusted_transcript_path(value: object) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        configured_home = os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
+        codex_home = Path(configured_home).expanduser().resolve()
+        path = Path(value).expanduser().resolve()
+        path.relative_to(codex_home)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return path
 
 
 def send_task_finish(hook_input: dict[str, Any]) -> None:
