@@ -28,12 +28,19 @@ def main() -> int:
         hook_input = {}
 
     try:
-        summary = summarize(str(hook_input.get("last_assistant_message") or ""))
-        send_task_complete(summary, hook_input)
+        notify_stop(hook_input)
     except Exception:
         pass
     sys.stdout.write(json.dumps({"continue": True}, separators=(",", ":")))
     return 0
+
+
+def notify_stop(hook_input: dict[str, Any]) -> None:
+    message = str(hook_input.get("last_assistant_message") or "")
+    if looks_like_task_descriptor(message):
+        send_task_finish(hook_input)
+        return
+    send_task_complete(summarize(message), hook_input)
 
 
 def summarize(message: str, max_chars: int = 96) -> str:
@@ -49,11 +56,42 @@ def summarize(message: str, max_chars: int = 96) -> str:
     return text[: max_chars - 3].rstrip() + "..."
 
 
+def looks_like_task_descriptor(message: str) -> bool:
+    try:
+        value = json.loads(message.strip())
+    except Exception:
+        return False
+    if not isinstance(value, dict) or set(value) != {"title", "description"}:
+        return False
+    title = value.get("title")
+    description = value.get("description")
+    if not isinstance(title, str) or not isinstance(description, str):
+        return False
+    title = title.strip()
+    description = description.strip()
+    return bool(title and description and len(title) <= 120 and len(description) <= 400)
+
+
+def send_task_finish(hook_input: dict[str, Any]) -> None:
+    event = build_task_event("task_finish", hook_input)
+    event["allow_oldest_fallback"] = False
+    send_event(event)
+
+
 def send_task_complete(summary: str, hook_input: dict[str, Any]) -> None:
-    event = {
-        "type": "task_complete",
-        "title": "任务完成！",
-        "body": summary,
+    event = build_task_event("task_complete", hook_input)
+    event.update(
+        {
+            "title": "任务完成！",
+            "body": summary,
+        }
+    )
+    send_event(event)
+
+
+def build_task_event(event_type: str, hook_input: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": event_type,
         "source": "codex",
         "session_id": hook_input.get("session_id"),
         "conversation_id": hook_input.get("conversation_id"),
@@ -61,7 +99,6 @@ def send_task_complete(summary: str, hook_input: dict[str, Any]) -> None:
         "task_id": hook_input.get("task_id"),
         "cwd": hook_input.get("cwd"),
     }
-    send_event(event)
 
 
 def send_event(event: dict[str, Any]) -> None:

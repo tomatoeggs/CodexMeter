@@ -69,3 +69,63 @@ def test_start_hook_forwards_transcript_path(tmp_path):
     )
 
     assert received[0]["transcript_path"] == transcript_path
+
+
+def test_stop_hook_suppresses_thread_title_descriptor():
+    spec = importlib.util.spec_from_file_location("codexmeter_stop_hook", STOP_HOOK)
+    assert spec is not None and spec.loader is not None
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    received = []
+    hook.send_event = received.append
+
+    hook.notify_stop(
+        {
+            "hook_event_name": "Stop",
+            "session_id": "session-title",
+            "turn_id": "turn-title",
+            "last_assistant_message": json.dumps(
+                {
+                    "title": "分析 skill 主流程",
+                    "description": "梳理 skill 的核心流程、阶段与关键步骤",
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        }
+    )
+
+    assert received == [
+        {
+            "type": "task_finish",
+            "source": "codex",
+            "session_id": "session-title",
+            "conversation_id": None,
+            "turn_id": "turn-title",
+            "task_id": None,
+            "cwd": None,
+            "allow_oldest_fallback": False,
+        }
+    ]
+
+
+def test_stop_hook_keeps_regular_completion_alerts():
+    spec = importlib.util.spec_from_file_location("codexmeter_stop_hook", STOP_HOOK)
+    assert spec is not None and spec.loader is not None
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    received = []
+    hook.send_event = received.append
+
+    hook.notify_stop(
+        {
+            "hook_event_name": "Stop",
+            "session_id": "session-a",
+            "turn_id": "turn-a",
+            "last_assistant_message": "已完成实现。\n\n测试也通过了。",
+        }
+    )
+
+    assert received[0]["type"] == "task_complete"
+    assert received[0]["title"] == "任务完成！"
+    assert received[0]["body"] == "已完成实现。 测试也通过了。"

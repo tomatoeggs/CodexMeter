@@ -329,7 +329,10 @@ class EventServer:
             changed = self.activity.start(event)
             self.transcripts.watch(event.get("turn_id"), event.get("transcript_path"))
         elif event_type == "task_finish":
-            task = self.activity.finish_task(event)
+            task = self.activity.finish_task(
+                event,
+                allow_oldest_fallback=_allow_oldest_fallback(event),
+            )
             changed = task is not None
             self._unwatch_task(task)
         else:
@@ -347,7 +350,10 @@ class EventServer:
         }
 
     async def _dispatch_task_complete(self, event: dict[str, Any]) -> dict[str, Any]:
-        task = self.activity.finish_task(event)
+        task = self.activity.finish_task(
+            event,
+            allow_oldest_fallback=_allow_oldest_fallback(event),
+        )
         activity_changed = task is not None
         self._unwatch_task(task)
         if activity_changed:
@@ -355,6 +361,14 @@ class EventServer:
             log.info("Queued activity count=%s", self.activity.count)
 
         body = str(event.get("body") or event.get("summary") or "")
+        if bool(event.get("suppress_alert")):
+            log.info("Suppressed task complete alert: %s", body[:80])
+            return {
+                "ok": True,
+                "queued": "activity" if activity_changed else None,
+                "running": self.activity.count,
+            }
+
         title = str(event.get("title") or "任务完成！")
         payload = build_alert_payload(
             body=body,
@@ -455,6 +469,10 @@ def _optional_event_id(value: object) -> str | None:
         return None
     text = value.strip()
     return text[:31] or None
+
+
+def _allow_oldest_fallback(event: dict[str, Any]) -> bool:
+    return event.get("allow_oldest_fallback") is not False
 
 
 def _identity_aliases(aliases: list[str]) -> list[str]:

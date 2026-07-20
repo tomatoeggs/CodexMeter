@@ -91,6 +91,30 @@ def test_activity_finish_falls_back_to_oldest_task_on_id_mismatch():
     asyncio.run(scenario())
 
 
+def test_activity_finish_can_disable_oldest_fallback():
+    async def scenario():
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(sink)
+        await server._dispatch({"type": "task_start", "session_id": "session-a"})
+        result = await server._dispatch(
+            {
+                "type": "task_finish",
+                "session_id": "session-b",
+                "allow_oldest_fallback": False,
+            }
+        )
+
+        assert result["running"] == 1
+        assert result["queued"] is None
+        assert payloads[-1].data["run"] == 1
+
+    asyncio.run(scenario())
+
+
 def test_activity_tracks_distinct_turns_in_the_same_session():
     async def scenario():
         payloads = []
@@ -356,6 +380,32 @@ def test_task_complete_clears_activity_and_queues_alert():
         assert payloads[-2].data["run"] == 0
         assert payloads[-1].data["run"] == 0
         assert payloads[-1].data["body"] == "摘要"
+
+    asyncio.run(scenario())
+
+
+def test_task_complete_can_suppress_alert_while_clearing_activity():
+    async def scenario():
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(sink)
+        await server._dispatch({"type": "task_start", "turn_id": "turn-title"})
+        result = await server._dispatch(
+            {
+                "type": "task_complete",
+                "turn_id": "turn-title",
+                "body": '{"title":"分析 skill 主流程","description":"梳理主流程"}',
+                "suppress_alert": True,
+            }
+        )
+
+        assert result["running"] == 0
+        assert result["queued"] == "activity"
+        assert [payload.kind for payload in payloads] == ["activity", "activity"]
+        assert payloads[-1].data["run"] == 0
 
     asyncio.run(scenario())
 
