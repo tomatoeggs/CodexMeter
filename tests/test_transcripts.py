@@ -15,6 +15,17 @@ def _row(event_type, turn_id):
     )
 
 
+def _session_meta(thread_source="user", source="vscode"):
+    return json.dumps(
+        {
+            "timestamp": "2026-07-17T10:00:00Z",
+            "type": "session_meta",
+            "payload": {"thread_source": thread_source, "source": source},
+        },
+        separators=(",", ":"),
+    )
+
+
 def test_watcher_ignores_history_and_detects_appended_turn_end(tmp_path):
     async def scenario():
         codex_home = tmp_path / ".codex"
@@ -158,6 +169,90 @@ def test_watcher_rejects_paths_outside_codex_home(tmp_path):
     watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
 
     assert watcher.watch("turn-a", str(outside)) is False
+
+
+def test_verifies_matching_user_turn_start(tmp_path):
+    async def on_ended(_turn_id, _event_type):
+        pass
+
+    codex_home = tmp_path / ".codex"
+    transcript = codex_home / "sessions" / "thread.jsonl"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(
+        _session_meta() + "\n" + _row("task_started", "turn-a") + "\n",
+        encoding="utf-8",
+    )
+    watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+
+    verification = watcher.verify_user_turn_start("turn-a", str(transcript))
+
+    assert verification.verified is True
+    assert verification.reason == "verified"
+
+
+def test_rejects_internal_turn_start(tmp_path):
+    async def on_ended(_turn_id, _event_type):
+        pass
+
+    codex_home = tmp_path / ".codex"
+    transcript = codex_home / "sessions" / "guardian.jsonl"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(
+        _session_meta("subagent", {"subagent": {"other": "guardian"}})
+        + "\n"
+        + _row("task_started", "turn-a")
+        + "\n",
+        encoding="utf-8",
+    )
+    watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+
+    verification = watcher.verify_user_turn_start("turn-a", str(transcript))
+
+    assert verification.verified is False
+    assert verification.reason == "internal_thread"
+
+
+def test_rejects_unmatched_turn_start(tmp_path):
+    async def on_ended(_turn_id, _event_type):
+        pass
+
+    codex_home = tmp_path / ".codex"
+    transcript = codex_home / "sessions" / "thread.jsonl"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(
+        _session_meta() + "\n" + _row("task_started", "real-turn") + "\n",
+        encoding="utf-8",
+    )
+    watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+
+    verification = watcher.verify_user_turn_start("hook-turn", str(transcript))
+
+    assert verification.verified is False
+    assert verification.reason == "missing_task_started"
+
+
+def test_rejects_already_ended_turn_start(tmp_path):
+    async def on_ended(_turn_id, _event_type):
+        pass
+
+    codex_home = tmp_path / ".codex"
+    transcript = codex_home / "sessions" / "thread.jsonl"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(
+        _session_meta()
+        + "\n"
+        + _row("task_started", "turn-a")
+        + "\n"
+        + _row("task_complete", "turn-a")
+        + "\n",
+        encoding="utf-8",
+    )
+    watcher = TranscriptWatcher(on_ended, codex_home=codex_home)
+
+    verification = watcher.verify_user_turn_start("turn-a", str(transcript))
+
+    assert verification.verified is False
+    assert verification.reason == "turn_already_ended"
 
 
 def test_watcher_reports_any_transcript_append_as_activity(tmp_path):

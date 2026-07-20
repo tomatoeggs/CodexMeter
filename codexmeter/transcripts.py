@@ -16,9 +16,14 @@ log = logging.getLogger(__name__)
 TurnEnded = Callable[[str, str], Awaitable[None]]
 TurnsActive = Callable[[set[str]], None]
 
+_START_EVENT_TYPES = frozenset({"task_started"})
 _END_EVENT_TYPES = frozenset({"task_complete", "turn_aborted"})
+_LIFECYCLE_EVENT_TYPES = _START_EVENT_TYPES | _END_EVENT_TYPES
+_INTERNAL_THREAD_SOURCES = frozenset({"subagent"})
+_USER_THREAD_SOURCE = "user"
 _MAX_READ_BYTES = 1024 * 1024
 _MAX_LINE_BYTES = 1024 * 1024
+_MAX_META_SCAN_LINES = 64
 _RECONCILE_TAIL_BYTES = 512 * 1024
 
 
@@ -58,6 +63,12 @@ class _Cursor:
             self.buffer = b""
             self.discard_until_newline = True
         return lines
+
+
+@dataclass(frozen=True)
+class TurnStartVerification:
+    verified: bool
+    reason: str
 
 
 class TranscriptWatcher:
@@ -123,6 +134,36 @@ class TranscriptWatcher:
         self._paths_by_turn[normalized_turn_id] = path
         log.debug("Watching transcript turn=%s path=%s", normalized_turn_id, path)
         return True
+
+    def verify_user_turn_start(
+        self, turn_id: object, transcript_path: object
+    ) -> TurnStartVerification:
+        if not isinstance(turn_id, str) or not turn_id.strip():
+            return TurnStartVerification(False, "missing_turn_id")
+        normalized_turn_id = turn_id.strip()
+        path = self._trusted_path(transcript_path)
+        if path is None:
+            return TurnStartVerification(False, "untrusted_transcript")
+
+        metadata = self._read_session_metadata(path)
+        if metadata is None:
+            return TurnStartVerification(False, "missing_session_meta")
+        if _is_internal_metadata(metadata):
+            return TurnStartVerification(False, "internal_thread")
+
+        thread_source = metadata.get("thread_source")
+        if (
+            not isinstance(thread_source, str)
+            or thread_source.strip().lower() != _USER_THREAD_SOURCE
+        ):
+            return TurnStartVerification(False, "non_user_thread")
+
+        event_type = self._find_latest_turn_lifecycle_event(path, normalized_turn_id)
+        if event_type in _START_EVENT_TYPES:
+            return TurnStartVerification(True, "verified")
+        if event_type in _END_EVENT_TYPES:
+            return TurnStartVerification(False, "turn_already_ended")
+        return TurnStartVerification(False, "missing_task_started")
 
     def unwatch(self, turn_id: str) -> None:
         path = self._paths_by_turn.pop(turn_id, None)
@@ -216,9 +257,55 @@ class TranscriptWatcher:
         cursor.buffer = b""
         cursor.discard_until_newline = offset > 0
 
+    def _read_session_metadata(self, path: Path) -> dict[str, Any] | None:
+        try:
+            with path.open("rb") as handle:
+                for _ in range(_MAX_META_SCAN_LINES):
+                    line = handle.readline(_MAX_LINE_BYTES + 1)
+                    if not line:
+                        break
+                    if len(line) > _MAX_LINE_BYTES or b"session_meta" not in line:
+                        continue
+                    row = json.loads(line)
+                    if not isinstance(row, dict) or row.get("type") != "session_meta":
+                        continue
+                    payload = row.get("payload")
+                    return payload if isinstance(payload, dict) else None
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return None
+        return None
 
-def _parse_turn_end(line: bytes) -> tuple[str, str] | None:
-    if b"task_complete" not in line and b"turn_aborted" not in line:
+    def _find_latest_turn_lifecycle_event(
+        self, path: Path, turn_id: str
+    ) -> str | None:
+        offset = self._reconcile_offset(path)
+        cursor = _Cursor(path=path, offset=offset, discard_until_newline=offset > 0)
+        rows, _advanced = self._read_rows(cursor)
+        latest: str | None = None
+        for row in rows:
+            lifecycle = _parse_turn_lifecycle_event(row)
+            if lifecycle is None:
+                continue
+            row_turn_id, event_type = lifecycle
+            if row_turn_id == turn_id:
+                latest = event_type
+        return latest
+
+
+def _is_internal_metadata(metadata: dict[str, Any]) -> bool:
+    thread_source = metadata.get("thread_source")
+    if (
+        isinstance(thread_source, str)
+        and thread_source.strip().lower() in _INTERNAL_THREAD_SOURCES
+    ):
+        return True
+
+    source = metadata.get("source")
+    return isinstance(source, dict) and source.get("subagent") is not None
+
+
+def _parse_turn_lifecycle_event(line: bytes) -> tuple[str, str] | None:
+    if not any(event_type.encode("utf-8") in line for event_type in _LIFECYCLE_EVENT_TYPES):
         return None
     try:
         row = json.loads(line)
@@ -231,8 +318,18 @@ def _parse_turn_end(line: bytes) -> tuple[str, str] | None:
         return None
     event_type = payload.get("type")
     turn_id = payload.get("turn_id")
-    if event_type not in _END_EVENT_TYPES:
+    if event_type not in _LIFECYCLE_EVENT_TYPES:
         return None
     if not isinstance(turn_id, str) or not turn_id.strip():
         return None
     return turn_id.strip(), event_type
+
+
+def _parse_turn_end(line: bytes) -> tuple[str, str] | None:
+    lifecycle = _parse_turn_lifecycle_event(line)
+    if lifecycle is None:
+        return None
+    turn_id, event_type = lifecycle
+    if event_type not in _END_EVENT_TYPES:
+        return None
+    return turn_id, event_type

@@ -337,6 +337,7 @@ async def run_daemon(args: argparse.Namespace) -> None:
         status_provider=status_provider,
         activity_ttl=args.activity_ttl,
         activity_sweep_interval=args.activity_sweep_interval,
+        verify_task_starts=True,
     )
 
     await supervise(

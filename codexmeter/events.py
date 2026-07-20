@@ -219,12 +219,14 @@ class EventServer:
         transcript_poll_interval: float = 1.0,
         activity_ttl: float = ACTIVITY_TTL_SEC,
         activity_sweep_interval: float = ACTIVITY_SWEEP_INTERVAL_SEC,
+        verify_task_starts: bool = False,
     ) -> None:
         self.sink = sink
         self.socket_path = socket_path
         self.status_provider = status_provider
         self.server: asyncio.AbstractServer | None = None
         self.activity = ActivityTracker()
+        self.verify_task_starts = verify_task_starts
         self.activity_ttl = max(0.0, activity_ttl)
         self.activity_sweep_interval = max(0.1, activity_sweep_interval)
         self.transcripts = TranscriptWatcher(
@@ -328,6 +330,24 @@ class EventServer:
     async def _dispatch_activity(self, event: dict[str, Any]) -> dict[str, Any]:
         event_type = event.get("type")
         if event_type == "task_start":
+            if self.verify_task_starts:
+                verification = self.transcripts.verify_user_turn_start(
+                    event.get("turn_id"), event.get("transcript_path")
+                )
+                if not verification.verified:
+                    log.info(
+                        "Ignored unverified task start turn=%s session=%s reason=%s",
+                        event.get("turn_id"),
+                        event.get("session_id"),
+                        verification.reason,
+                    )
+                    return {
+                        "ok": True,
+                        "queued": None,
+                        "running": self.activity.count,
+                        "ignored": "unverified_task_start",
+                        "reason": verification.reason,
+                    }
             changed = self.activity.start(event)
             self.transcripts.watch(event.get("turn_id"), event.get("transcript_path"))
         elif event_type == "task_finish":

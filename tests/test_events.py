@@ -273,6 +273,66 @@ def test_transcript_finish_reconciles_when_end_event_already_exists(tmp_path):
     asyncio.run(scenario())
 
 
+def test_verified_task_start_requires_matching_user_transcript(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "thread.jsonl"
+        transcript.parent.mkdir(parents=True)
+        rows = [
+            {
+                "type": "session_meta",
+                "payload": {"thread_source": "user", "source": "vscode"},
+            },
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_started", "turn_id": "real-turn"},
+            },
+        ]
+        transcript.write_text(
+            "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(
+            sink,
+            transcript_root=codex_home,
+            verify_task_starts=True,
+        )
+        ignored = await server._dispatch(
+            {
+                "type": "task_start",
+                "session_id": "session-a",
+                "turn_id": "hook-turn",
+                "transcript_path": str(transcript),
+            }
+        )
+
+        assert ignored["running"] == 0
+        assert ignored["ignored"] == "unverified_task_start"
+        assert ignored["reason"] == "missing_task_started"
+        assert payloads == []
+
+        accepted = await server._dispatch(
+            {
+                "type": "task_start",
+                "session_id": "session-a",
+                "turn_id": "real-turn",
+                "transcript_path": str(transcript),
+            }
+        )
+
+        assert accepted["running"] == 1
+        assert payloads[-1].kind == "activity"
+        assert payloads[-1].data["run"] == 1
+        assert server.transcripts.watch_count == 1
+
+    asyncio.run(scenario())
+
+
 def test_activity_ttl_expires_only_stale_tasks_and_late_stop_is_safe():
     async def scenario():
         payloads = []
