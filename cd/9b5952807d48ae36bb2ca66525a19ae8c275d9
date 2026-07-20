@@ -1,0 +1,21 @@
+hooks/codexmeter_stop_hook.py
+  s_63e842c762ea45::t_72b99b7d9d3ec9 31,38-45,59-80,82-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd9b5952807d48ae36bb2ca66525a19ae8c275d9",
+  "prompts": {},
+  "sessions": {
+    "s_63e842c762ea45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f373f-5802-7082-b6ad-497a45843699",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
