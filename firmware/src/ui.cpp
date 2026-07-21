@@ -71,6 +71,8 @@ static const int PANEL_CONTENT_W = PANEL_W - 64;
 static const int PANEL_CONTENT_H = 108;
 static const int TOKEN_RIGHT_COLUMN_X = 216;
 static const int TOKEN_VALUE_Y_OFFSET = 7;
+static const int TOP_TITLE_DEFAULT_Y = 17;
+static const int TOP_TITLE_TOKEN_Y = 14;
 static const int ALERT_TEXT_W = CODEXMETER_SCREEN_W - 64;
 static const int ALERT_TEXT_X = 32;
 // TinyTTF centers by advance width; this font's visible CJK bounds sit slightly right.
@@ -487,7 +489,9 @@ static void set_token_usage_mode(bool enabled) {
     lv_obj_set_style_text_font(d7_heading, ui_font(), 0);
   }
 
-  lv_obj_align(top_title, LV_ALIGN_TOP_MID, 0, 17);
+  lv_obj_align(
+      top_title, LV_ALIGN_TOP_MID, 0,
+      enabled ? TOP_TITLE_TOKEN_Y : TOP_TITLE_DEFAULT_Y);
   lv_obj_align(d7_heading, LV_ALIGN_TOP_LEFT, 0, 0);
 }
 
@@ -543,7 +547,7 @@ void ui_init() {
   lv_obj_align(top_logo, LV_ALIGN_TOP_LEFT, 22, 16);
 
   top_title = make_label(main_layer, "剩余用量", ui_font(), TEXT);
-  lv_obj_align(top_title, LV_ALIGN_TOP_MID, 0, 17);
+  lv_obj_align(top_title, LV_ALIGN_TOP_MID, 0, TOP_TITLE_DEFAULT_Y);
 
   lv_obj_t* battery_icon = make_battery_icon(main_layer);
   lv_obj_align(battery_icon, LV_ALIGN_TOP_RIGHT, -18, 25);
