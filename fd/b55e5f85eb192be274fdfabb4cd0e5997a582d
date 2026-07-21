@@ -1,0 +1,21 @@
+firmware/src/ui.cpp
+  s_63e842c762ea45::t_2de97f9f03a20a 74-75,492-494,550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fdb55e5f85eb192be274fdfabb4cd0e5997a582d",
+  "prompts": {},
+  "sessions": {
+    "s_63e842c762ea45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f373f-5802-7082-b6ad-497a45843699",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
