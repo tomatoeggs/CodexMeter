@@ -1,0 +1,79 @@
+docs/assets/nothing-variants.svg
+  s_b9cd029bff8ff6::t_bff96f14beed41 1-141
+docs/assets/themes-games.svg
+  s_2f92895fcacdf5::t_51f7219e804522 1-252
+docs/assets/themes-preview-v6.svg
+  s_b9cd029bff8ff6::t_5e828c343bff12 1-197
+docs/assets/themes-preview.svg
+  s_b9cd029bff8ff6::t_40c6c40b9341d4 1-197
+docs/nothing-variants.md
+  s_b9cd029bff8ff6::t_1079d3f6fe75ff 1-29
+docs/themes-games.md
+  s_2f92895fcacdf5::t_9ae8000adace84 1-51
+docs/themes-v6.md
+  s_b9cd029bff8ff6::t_c9641dff89f63e 1-49
+docs/themes.md
+  s_b9cd029bff8ff6::t_5e41ca4478f371 1-49
+firmware/include/config.h
+  s_2f92895fcacdf5::t_9487df90c6a047 53-61
+firmware/src/classic_theme.cpp
+  s_2f92895fcacdf5::t_b1b0476dad776d 1-474
+firmware/src/cyberpunk_theme.h
+  s_2f92895fcacdf5::t_c045151063c40c 1-5
+firmware/src/dashboard_view_model.cpp
+  s_2f92895fcacdf5::t_1446a9cfa94625 1-167
+firmware/src/dashboard_view_model.h
+  s_2f92895fcacdf5::t_28bd0ffc252596 1-45
+firmware/src/device_settings.cpp
+  s_2f92895fcacdf5::t_f405e234268e32 1-237
+firmware/src/main.cpp
+  s_2f92895fcacdf5::t_13e8f593fdc917 9,16,209,214,224-225,227,232-234,240-247,466-523,591-596,598-603,605-610,650-651,655-658,687
+firmware/src/power.cpp
+  s_2f92895fcacdf5::t_b1187e156dfe11 14,18-19,33-36,59-73,88-91
+firmware/src/power.h
+  s_2f92895fcacdf5::t_acc61efa06dcb2 3-10,15
+firmware/src/theme.h
+  s_2f92895fcacdf5::t_9a0fe5ea073b27 1-66
+firmware/src/theme_registry.cpp
+  s_2f92895fcacdf5::t_509a7c1300b34c 1-86
+firmware/src/theme_registry.h
+  s_2f92895fcacdf5::t_31e144cfabe7c0 1-12
+firmware/src/theme_rotation.cpp
+  s_2f92895fcacdf5::t_b1ed33d0e17dc1 1-59
+firmware/src/theme_rotation.h
+  s_2f92895fcacdf5::t_b082f12b6d6411 1-25
+firmware/src/theme_runtime.cpp
+  s_2f92895fcacdf5::t_a188c1a764e3ca 1-101
+firmware/src/theme_runtime.h
+  s_2f92895fcacdf5::t_9da0a505e2c254 1-32
+firmware/src/ui.cpp
+  s_2f92895fcacdf5::t_76d46acd0d47c7 8-14,19-23,25,27-48,55,60-126,130,134-135,138-139,142-143,146,150-176,186,195,198-199,201-202,204-205,210-212,225-230,233-239,242-249,252-274,277-376,378-401,406-407,410,415,417-419,424-426,428-430,437-443,446-454,456-470,473-481,484-502,504-505,507-517,519-523,526-527,530-539,542-577,580-588,591-612,614-639,641-657,659,662-666,669-689,692,694-695,697-699,704-705,707-721,723-734,738-739,743-744,748-753,756-757,766,772-773,777-779,783-786,796-799,803-804,809-835,838-839,843-844,856-857,860-861,864-865,871-872,877-922,924,931,937-1001
+firmware/src/ui.h
+  s_2f92895fcacdf5::t_76abb18232e784 5-9,16-22,25-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f7b6c29c3571763a0e6ae5197fb0ccf023e0f8e7",
+  "prompts": {},
+  "sessions": {
+    "s_2f92895fcacdf5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f89ff-0680-7ad0-ac52-3e126093b967",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    },
+    "s_b9cd029bff8ff6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8931-ef14-7a32-81a4-4980429c33db",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
