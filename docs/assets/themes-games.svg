@@ -1,0 +1,252 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="760" viewBox="0 0 1800 760">
+  <defs>
+    <clipPath id="famicom-screen"><rect x="50" y="150" width="480" height="480" rx="28"/></clipPath>
+    <clipPath id="island-screen"><rect x="660" y="150" width="480" height="480" rx="28"/></clipPath>
+    <clipPath id="slate-screen"><rect x="1270" y="150" width="480" height="480" rx="28"/></clipPath>
+
+    <linearGradient id="famicom-shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6efd9"/><stop offset="1" stop-color="#d8ccb0"/>
+    </linearGradient>
+    <linearGradient id="island-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9edfe8"/><stop offset="1" stop-color="#d9f4e8"/>
+    </linearGradient>
+    <radialGradient id="slate-core" cx="45%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#173a3d"/><stop offset=".6" stop-color="#0a2428"/><stop offset="1" stop-color="#06191d"/>
+    </radialGradient>
+    <pattern id="pixel-grid" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0H0V10" fill="none" stroke="#ffffff" stroke-opacity=".025"/>
+    </pattern>
+    <pattern id="island-specks" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="7" cy="8" r="1.5" fill="#ffffff" opacity=".28"/>
+      <path d="M22 20l3-4 3 4-3 4z" fill="#4ba985" opacity=".18"/>
+    </pattern>
+    <pattern id="contours" width="120" height="90" patternUnits="userSpaceOnUse">
+      <path d="M-20 24C18 2 48 50 83 26S136 8 151 24M-12 52C25 31 51 75 88 53S138 35 157 52M-4 78C30 61 60 96 99 76S142 60 166 76" fill="none" stroke="#75cdd0" stroke-opacity=".07" stroke-width="1"/>
+    </pattern>
+    <filter id="screen-shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity=".42"/>
+    </filter>
+    <filter id="blue-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#3b6d62" flood-opacity=".22"/>
+    </filter>
+  </defs>
+
+  <!-- presentation board -->
+  <rect width="1800" height="760" fill="#151515"/>
+  <path d="M0 104H1800" stroke="#343434"/>
+  <text x="50" y="48" fill="#e8dcc2" font-family="Menlo, Monaco, monospace" font-size="19" font-weight="700" letter-spacing="2">01 / FAMICOM • HARDWARE PANEL</text>
+  <text x="660" y="48" fill="#f4df83" font-family="Avenir Next Rounded, sans-serif" font-size="19" font-weight="800" letter-spacing="1.2">02 / ANIMAL CROSSING • ISLAND DAY</text>
+  <text x="1270" y="48" fill="#7fe9ea" font-family="Copperplate, Georgia, serif" font-size="18" font-weight="700" letter-spacing="1.5">03 / WILD • ANCIENT SLATE</text>
+  <text x="50" y="82" fill="#77736d" font-family="Menlo, Monaco, monospace" font-size="10" letter-spacing="1.4">IVORY SHELL / WINE RED / CONTROLLER GEOMETRY / PIXEL DATA</text>
+  <text x="660" y="82" fill="#77736d" font-family="Menlo, Monaco, monospace" font-size="10" letter-spacing="1.4">SKY / WOOD SIGN / SPEECH BUBBLE / ISLAND LANDSCAPE</text>
+  <text x="1270" y="82" fill="#77736d" font-family="Menlo, Monaco, monospace" font-size="10" letter-spacing="1.4">ANCIENT CYAN / STONE FRAME / RUNIC ORBIT / AMBER PIN</text>
+
+  <!-- 01 / Famicom hardware theme -->
+  <g filter="url(#screen-shadow)"><rect x="50" y="150" width="480" height="480" rx="28" fill="#eee6d1"/></g>
+  <g clip-path="url(#famicom-screen)">
+    <rect x="50" y="150" width="480" height="480" fill="url(#famicom-shell)"/>
+    <rect x="50" y="150" width="480" height="480" fill="url(#pixel-grid)"/>
+    <rect x="50" y="150" width="18" height="480" fill="#86172a"/>
+    <rect x="512" y="150" width="18" height="480" fill="#86172a"/>
+
+    <!-- cartridge-red identity header -->
+    <path d="M68 150H512V222H470L456 208H68Z" fill="#86172a"/>
+    <path d="M356 150H512V178H382Z" fill="#b89443"/>
+    <text x="84" y="184" fill="#fff8e6" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="27" font-weight="900" letter-spacing="1">CODEX METER</text>
+    <text x="85" y="205" fill="#e7cfc6" font-family="Menlo, Monaco, monospace" font-size="7" font-weight="700" letter-spacing="1.7">FAMILY TOKEN SYSTEM / MODEL CM-01</text>
+    <circle cx="459" cy="191" r="5" fill="#ff314c"/>
+    <text x="472" y="188" fill="#fff1de" font-family="Menlo, Monaco, monospace" font-size="6" letter-spacing="1">BATTERY</text>
+    <text x="471" y="204" fill="#fff1de" font-family="Menlo, Monaco, monospace" font-size="10" font-weight="700">87%</text>
+
+    <!-- recessed data display -->
+    <rect x="78" y="239" width="424" height="174" rx="5" fill="#25211f" stroke="#b89443" stroke-width="3"/>
+    <path d="M88 250H492M331 250V402" stroke="#4a4440"/>
+    <text x="96" y="270" fill="#d2c5aa" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="2">TODAY / TOKEN</text>
+    <text x="92" y="337" fill="#fff7e5" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="70" font-weight="900" letter-spacing="-2">096.2</text>
+    <text x="290" y="337" fill="#d1263e" font-family="Menlo, Monaco, monospace" font-size="18" font-weight="700">M</text>
+    <text x="348" y="270" fill="#d2c5aa" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="1.5">7 DAYS</text>
+    <text x="345" y="320" fill="#fff7e5" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="48" font-weight="900">347</text>
+    <text x="455" y="320" fill="#b89443" font-family="Menlo, Monaco, monospace" font-size="14">M</text>
+    <text x="96" y="375" fill="#8e8781" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.2">TODAY / 7D  27.7%</text>
+    <g fill="#d1263e">
+      <rect x="96" y="386" width="8" height="8"/><rect x="107" y="386" width="8" height="8"/><rect x="118" y="386" width="8" height="8"/><rect x="129" y="386" width="8" height="8"/><rect x="140" y="386" width="8" height="8"/>
+    </g>
+    <g fill="#4b4541">
+      <rect x="151" y="386" width="8" height="8"/><rect x="162" y="386" width="8" height="8"/><rect x="173" y="386" width="8" height="8"/><rect x="184" y="386" width="8" height="8"/><rect x="195" y="386" width="8" height="8"/>
+      <rect x="206" y="386" width="8" height="8"/><rect x="217" y="386" width="8" height="8"/><rect x="228" y="386" width="8" height="8"/><rect x="239" y="386" width="8" height="8"/><rect x="250" y="386" width="8" height="8"/>
+      <rect x="261" y="386" width="8" height="8"/><rect x="272" y="386" width="8" height="8"/><rect x="283" y="386" width="8" height="8"/>
+    </g>
+
+    <!-- quota cartridge label -->
+    <path d="M78 429H326V539H92L78 525Z" fill="#fff7e5" stroke="#86172a" stroke-width="3"/>
+    <text x="95" y="452" fill="#86172a" font-family="Menlo, Monaco, monospace" font-size="8" font-weight="700" letter-spacing="1.5">7D LIMIT / REMAINS</text>
+    <text x="92" y="516" fill="#86172a" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="66" font-weight="900">83</text>
+    <text x="171" y="500" fill="#b89443" font-family="Menlo, Monaco, monospace" font-size="18" font-weight="700">%</text>
+    <g fill="#86172a">
+      <rect x="205" y="477" width="7" height="29"/><rect x="215" y="477" width="7" height="29"/><rect x="225" y="477" width="7" height="29"/><rect x="235" y="477" width="7" height="29"/><rect x="245" y="477" width="7" height="29"/>
+      <rect x="255" y="477" width="7" height="29"/><rect x="265" y="477" width="7" height="29"/><rect x="275" y="477" width="7" height="29"/><rect x="285" y="477" width="7" height="29"/><rect x="295" y="477" width="7" height="29"/>
+    </g>
+    <rect x="305" y="477" width="7" height="29" fill="#c9bfa9"/><rect x="315" y="477" width="7" height="29" fill="#c9bfa9"/>
+
+    <!-- select / start reset block -->
+    <rect x="343" y="429" width="159" height="110" rx="5" fill="#d4c8af" stroke="#8d8171"/>
+    <text x="360" y="452" fill="#665e55" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="1.4">RESET WINDOW</text>
+    <rect x="357" y="468" width="61" height="27" rx="14" fill="#86172a"/>
+    <rect x="426" y="468" width="61" height="27" rx="14" fill="#86172a"/>
+    <text x="374" y="486" fill="#fff7e5" font-family="Menlo, Monaco, monospace" font-size="10" font-weight="700">06D</text>
+    <text x="443" y="486" fill="#fff7e5" font-family="Menlo, Monaco, monospace" font-size="10" font-weight="700">14H</text>
+    <text x="373" y="516" fill="#746b60" font-family="Menlo, Monaco, monospace" font-size="6">SELECT</text>
+    <text x="444" y="516" fill="#746b60" font-family="Menlo, Monaco, monospace" font-size="6">START</text>
+
+    <!-- controller status rail -->
+    <path d="M78 554H502V616H78Z" fill="#c8bda6" stroke="#8d8171"/>
+    <g fill="#302c29">
+      <rect x="101" y="567" width="16" height="38" rx="2"/><rect x="90" y="578" width="38" height="16" rx="2"/>
+    </g>
+    <text x="147" y="576" fill="#665e55" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.3">ACTIVE TASKS</text>
+    <text x="147" y="602" fill="#86172a" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="28" font-weight="900">02</text>
+    <text x="181" y="601" fill="#665e55" font-family="Menlo, Monaco, monospace" font-size="8">RUNNING</text>
+    <rect x="290" y="578" width="55" height="16" rx="8" fill="#4d4742"/><rect x="354" y="578" width="55" height="16" rx="8" fill="#4d4742"/>
+    <text x="307" y="589" fill="#ded4bd" font-family="Menlo, Monaco, monospace" font-size="6">BLE</text>
+    <text x="371" y="589" fill="#ded4bd" font-family="Menlo, Monaco, monospace" font-size="6">SYNC</text>
+    <circle cx="447" cy="585" r="17" fill="#86172a"/><circle cx="484" cy="585" r="17" fill="#86172a"/>
+    <text x="442" y="590" fill="#fff7e5" font-family="Menlo, Monaco, monospace" font-size="11" font-weight="700">B</text>
+    <text x="479" y="590" fill="#fff7e5" font-family="Menlo, Monaco, monospace" font-size="11" font-weight="700">A</text>
+  </g>
+
+  <!-- 02 / Animal Crossing island-day theme -->
+  <g filter="url(#screen-shadow)"><rect x="660" y="150" width="480" height="480" rx="28" fill="#bde9e2"/></g>
+  <g clip-path="url(#island-screen)">
+    <rect x="660" y="150" width="480" height="480" fill="url(#island-sky)"/>
+    <rect x="660" y="150" width="480" height="480" fill="url(#island-specks)"/>
+    <path d="M660 214C710 188 736 224 780 203S857 208 895 192" fill="none" stroke="#f9fff5" stroke-width="17" stroke-linecap="round" opacity=".55"/>
+    <path d="M1021 211C1053 191 1080 218 1125 198" fill="none" stroke="#f9fff5" stroke-width="13" stroke-linecap="round" opacity=".5"/>
+
+    <!-- hanging island sign -->
+    <path d="M711 150V169M925 150V169" stroke="#7c6042" stroke-width="3"/>
+    <path d="M692 168Q818 151 947 168L940 220Q819 233 700 219Z" fill="#c8864c" stroke="#815936" stroke-width="2" filter="url(#soft-shadow)"/>
+    <path d="M706 185C755 174 867 173 931 184" fill="none" stroke="#e0a56d" stroke-width="2" opacity=".6"/>
+    <text x="819" y="195" fill="#fff8d8" font-family="Avenir Next Rounded, sans-serif" font-size="22" font-weight="800" text-anchor="middle">CODEX ISLAND</text>
+    <text x="819" y="211" fill="#6e4d32" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.2" text-anchor="middle">LOCAL TOKEN BULLETIN</text>
+    <rect x="1001" y="169" width="107" height="35" rx="18" fill="#fff8dc" opacity=".92"/>
+    <path d="M1017 181H1037V194H1017Z" fill="none" stroke="#4b9176" stroke-width="1.5"/>
+    <rect x="1020" y="184" width="14" height="7" rx="1" fill="#63bd8e"/>
+    <text x="1050" y="192" fill="#47705f" font-family="Menlo, Monaco, monospace" font-size="10" font-weight="700">87%</text>
+
+    <!-- today's speech bubble -->
+    <path d="M688 241Q688 224 707 224H951Q971 224 971 244V368Q971 389 950 389H782L755 411L758 389H707Q688 389 688 370Z" fill="#fff9df" stroke="#7fc7ae" stroke-width="3" filter="url(#soft-shadow)"/>
+    <circle cx="717" cy="251" r="4" fill="#ef7064"/>
+    <text x="732" y="256" fill="#5d7c70" font-family="Avenir Next Rounded, sans-serif" font-size="10" font-weight="700" letter-spacing="1.2">TODAY'S TOKENS</text>
+    <text x="716" y="342" fill="#386e5a" font-family="Avenir Next Rounded, sans-serif" font-size="72" font-weight="900" letter-spacing="-3">96.2</text>
+    <text x="883" y="341" fill="#e2a43b" font-family="Avenir Next Rounded, sans-serif" font-size="23" font-weight="800">M</text>
+    <path d="M716 361C760 350 811 370 854 359S923 362 944 355" fill="none" stroke="#ef7064" stroke-width="4" stroke-linecap="round"/>
+
+    <!-- weekly hanging memo -->
+    <path d="M1040 213V230" stroke="#806549" stroke-width="2"/>
+    <path d="M991 231Q1047 220 1103 233L1094 380Q1043 390 990 377Z" fill="#f4d36a" stroke="#b99539" stroke-width="2" filter="url(#soft-shadow)"/>
+    <circle cx="1040" cy="234" r="5" fill="#ef7064"/>
+    <text x="1046" y="264" fill="#816829" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="1.2" text-anchor="middle">7 DAYS</text>
+    <text x="1043" y="313" fill="#4b6f59" font-family="Avenir Next Rounded, sans-serif" font-size="43" font-weight="900" text-anchor="middle">347</text>
+    <text x="1045" y="335" fill="#816829" font-family="Menlo, Monaco, monospace" font-size="11" text-anchor="middle">M TOKENS</text>
+    <path d="M1008 350H1081M1015 362H1074" stroke="#c19e43" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- island landscape carries quota and reset -->
+    <path d="M660 455C722 413 780 444 832 423S949 421 1002 446S1088 415 1140 444V630H660Z" fill="#6fc18b"/>
+    <path d="M660 518C726 490 793 528 850 500S955 514 1016 494S1093 498 1140 518V630H660Z" fill="#3da579" opacity=".78"/>
+    <path d="M660 573C726 553 791 590 858 566S979 580 1042 561S1109 570 1140 578V630H660Z" fill="#53b9c4"/>
+    <path d="M660 592C730 576 792 608 858 587S985 602 1042 583S1110 592 1140 598" fill="none" stroke="#d9f8e9" stroke-width="4" opacity=".7"/>
+
+    <!-- quota is a leaf-shaped island badge -->
+    <path d="M684 476C704 432 771 417 831 449C819 505 763 540 698 520C690 509 685 494 684 476Z" fill="#fff8dc" stroke="#4b9c73" stroke-width="3" filter="url(#soft-shadow)"/>
+    <path d="M701 509C729 480 757 460 811 447" fill="none" stroke="#9bcf94" stroke-width="2"/>
+    <text x="716" y="463" fill="#619376" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.1">7D REMAINS</text>
+    <text x="712" y="507" fill="#3e795f" font-family="Avenir Next Rounded, sans-serif" font-size="48" font-weight="900">83%</text>
+
+    <!-- reset arrow sign -->
+    <path d="M865 444H1052L1083 474L1052 505H865Z" fill="#bb7a42" stroke="#765033" stroke-width="2" filter="url(#soft-shadow)"/>
+    <path d="M879 460H1047M882 488H1042" stroke="#d89a60" opacity=".55"/>
+    <text x="889" y="468" fill="#f8ebc7" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.3">RESET IN</text>
+    <text x="889" y="492" fill="#fff8dc" font-family="Avenir Next Rounded, sans-serif" font-size="24" font-weight="800">06D 14H</text>
+
+    <!-- task visitors on the shoreline -->
+    <path d="M878 540L895 524L912 540V560H878Z" fill="#fff8dc" stroke="#35785e" stroke-width="2"/>
+    <rect x="891" y="548" width="8" height="12" fill="#ef7064"/>
+    <path d="M931 541C931 526 949 519 959 530C969 519 987 526 987 541C987 556 959 568 959 568S931 556 931 541Z" fill="#f4d36a" stroke="#35785e" stroke-width="2"/>
+    <text x="1007" y="548" fill="#eaffdd" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="1.2">2 TASKS</text>
+    <text x="1007" y="563" fill="#286a55" font-family="Menlo, Monaco, monospace" font-size="7">VISITING</text>
+  </g>
+
+  <!-- 03 / ancient slate theme -->
+  <g filter="url(#screen-shadow)"><rect x="1270" y="150" width="480" height="480" rx="28" fill="#071b1f"/></g>
+  <g clip-path="url(#slate-screen)">
+    <rect x="1270" y="150" width="480" height="480" fill="url(#slate-core)"/>
+    <rect x="1270" y="150" width="480" height="480" fill="url(#contours)"/>
+
+    <!-- carved stone frame -->
+    <path d="M1290 181L1317 161H1703L1730 188V592L1708 616H1312L1290 594Z" fill="none" stroke="#567b79" stroke-width="3"/>
+    <path d="M1304 198L1328 175H1689L1716 200M1304 576L1327 602H1691L1716 578" fill="none" stroke="#2b4e4f" stroke-width="2"/>
+    <path d="M1290 236H1315L1326 225M1730 236H1705L1694 225M1290 545H1315L1326 556M1730 545H1705L1694 556" fill="none" stroke="#d2873c" stroke-width="3"/>
+
+    <!-- slate header -->
+    <circle cx="1324" cy="201" r="5" fill="#e6873a"/>
+    <text x="1340" y="199" fill="#9de7e2" font-family="Copperplate, Georgia, serif" font-size="17" font-weight="700" letter-spacing="1.5">CODEX SLATE</text>
+    <text x="1340" y="216" fill="#5f9695" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.4">ANCIENT TOKEN RELAY / LINKED</text>
+    <path d="M1650 186H1701L1710 195V216H1650Z" fill="none" stroke="#4b7776"/>
+    <path d="M1660 197H1679V207H1660Z" fill="none" stroke="#83d9d7"/>
+    <rect x="1663" y="200" width="13" height="4" fill="#83d9d7"/>
+    <text x="1685" y="207" fill="#9de7e2" font-family="Menlo, Monaco, monospace" font-size="8">87%</text>
+
+    <!-- luminous runic orbit for today's tokens -->
+    <g filter="url(#blue-glow)" opacity=".9">
+      <circle cx="1436" cy="359" r="109" fill="none" stroke="#66d8da" stroke-width="2" stroke-dasharray="3 9"/>
+      <circle cx="1436" cy="359" r="91" fill="none" stroke="#66d8da" stroke-width="1.5" stroke-dasharray="110 12 54 18 130 48"/>
+      <circle cx="1436" cy="359" r="77" fill="none" stroke="#2f7f82"/>
+    </g>
+    <path d="M1436 244L1443 257H1429ZM1532 359L1518 366V352ZM1436 474L1429 461H1443ZM1340 359L1354 352V366Z" fill="#d2873c"/>
+    <g fill="#74dfe0" opacity=".75">
+      <circle cx="1380" cy="288" r="2"/><circle cx="1490" cy="287" r="2"/><circle cx="1510" cy="414" r="2"/><circle cx="1361" cy="420" r="2"/>
+    </g>
+    <text x="1436" y="318" fill="#79b9b8" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="2" text-anchor="middle">TODAY / TOKEN</text>
+    <text x="1436" y="378" fill="#d5f4ed" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="54" font-weight="800" text-anchor="middle">96.2</text>
+    <text x="1436" y="401" fill="#6bd9d9" font-family="Menlo, Monaco, monospace" font-size="13" font-weight="700" text-anchor="middle">MILLION</text>
+    <path d="M1391 417H1481" stroke="#d2873c" stroke-width="2"/>
+    <text x="1436" y="436" fill="#668f8e" font-family="Menlo, Monaco, monospace" font-size="7" text-anchor="middle">7D SHARE 27.7%</text>
+
+    <!-- vertical rune tablet for weekly total -->
+    <path d="M1563 259L1580 241H1698L1714 258V428L1697 447H1580L1563 430Z" fill="#0c292d" fill-opacity=".9" stroke="#3d7475" stroke-width="2"/>
+    <path d="M1577 273H1699M1577 418H1699" stroke="#224b4e"/>
+    <text x="1590" y="293" fill="#679e9d" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="1.6">7D TOTAL</text>
+    <text x="1587" y="361" fill="#c8eee8" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="63" font-weight="800">347</text>
+    <text x="1681" y="361" fill="#d2873c" font-family="Menlo, Monaco, monospace" font-size="15">M</text>
+    <g fill="#4daeb0">
+      <path d="M1590 389l6-6 6 6-6 6z"/><path d="M1610 389l6-6 6 6-6 6z"/><path d="M1630 389l6-6 6 6-6 6z"/><path d="M1650 389l6-6 6 6-6 6z"/><path d="M1670 389l6-6 6 6-6 6z"/>
+    </g>
+
+    <!-- quota rune rail -->
+    <text x="1315" y="512" fill="#669a99" font-family="Menlo, Monaco, monospace" font-size="8" letter-spacing="1.5">QUOTA REMAINS</text>
+    <text x="1313" y="561" fill="#d5f4ed" font-family="Copperplate, Georgia, serif" font-size="42" font-weight="700">83%</text>
+    <g fill="#68d7d8" filter="url(#blue-glow)">
+      <path d="M1419 541l7-9 7 9-7 9z"/><path d="M1442 541l7-9 7 9-7 9z"/><path d="M1465 541l7-9 7 9-7 9z"/><path d="M1488 541l7-9 7 9-7 9z"/>
+      <path d="M1511 541l7-9 7 9-7 9z"/><path d="M1534 541l7-9 7 9-7 9z"/><path d="M1557 541l7-9 7 9-7 9z"/><path d="M1580 541l7-9 7 9-7 9z"/>
+      <path d="M1603 541l7-9 7 9-7 9z"/><path d="M1626 541l7-9 7 9-7 9z"/>
+    </g>
+    <g fill="#26494b"><path d="M1649 541l7-9 7 9-7 9z"/><path d="M1672 541l7-9 7 9-7 9z"/></g>
+    <circle cx="1640" cy="541" r="3" fill="#e6873a"/>
+
+    <!-- reset and task footer carved into slate -->
+    <path d="M1314 581H1502M1540 581H1707" stroke="#31585a"/>
+    <text x="1315" y="602" fill="#679e9d" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.2">ACTIVE TASKS</text>
+    <circle cx="1417" cy="599" r="4" fill="#6bd9d9"/><circle cx="1432" cy="599" r="4" fill="#6bd9d9"/>
+    <text x="1447" y="603" fill="#a9d4cf" font-family="Menlo, Monaco, monospace" font-size="9">02</text>
+    <text x="1541" y="602" fill="#679e9d" font-family="Menlo, Monaco, monospace" font-size="7" letter-spacing="1.2">RESET</text>
+    <text x="1600" y="603" fill="#c8eee8" font-family="Menlo, Monaco, monospace" font-size="10" font-weight="700">06D 14H</text>
+  </g>
+
+  <text x="50" y="694" fill="#686868" font-family="Menlo, Monaco, monospace" font-size="10" letter-spacing="1.4">DESIGN STUDY / 3 × 480 × 480 / ORIGINAL UI COMPOSITIONS / NO IMPLEMENTATION</text>
+  <circle cx="1720" cy="690" r="4" fill="#d2873c"/>
+  <text x="1706" y="694" fill="#686868" font-family="Menlo, Monaco, monospace" font-size="9" text-anchor="end">GAME WORLDS / V1</text>
+</svg>

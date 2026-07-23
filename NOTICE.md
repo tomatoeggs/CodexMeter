@@ -17,3 +17,7 @@ USB 截图能力参考了 Clawdmeter 的串口协议和 LVGL snapshot 思路：
 使用 QMI8658 加速度计判断 0/90/180/270 度方向，并在 CO5300 不依赖硬件旋转的前提下
 对 LVGL 局部刷新区域做 CPU 侧 RGB565 旋转。CodexMeter 的 `imu.*` 和
 `display_rotation.*` 按本项目模块边界重新实现。
+
+Cyberpunk 主题使用 Barlow Condensed Black 字体。该字体版权归 The Barlow
+Project Authors 所有，并按照 SIL Open Font License 1.1 分发；完整许可文本见
+`firmware/data/fonts/OFL-BarlowCondensed.txt`。

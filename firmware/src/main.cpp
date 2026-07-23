@@ -6,12 +6,14 @@
 
 #include "ble_service.h"
 #include "config.h"
+#include "device_settings.h"
 #include "device_log.h"
 #include "display_rotation.h"
 #include "identity.h"
 #include "imu.h"
 #include "model.h"
 #include "power.h"
+#include "theme_registry.h"
 #include "ui.h"
 
 #ifdef BOARD_HAS_PSRAM
@@ -204,13 +206,12 @@ static void set_screen_on(bool on, const char* reason) {
   if (screen_on) {
     gfx->displayOn();
     apply_brightness();
+    ui_set_display_active(true);
     lv_obj_invalidate(lv_screen_active());
     lv_refr_now(nullptr);
     device_logf("INFO", "screen on %s", non_empty_reason(reason));
   } else {
-    if (ui_alert_visible()) {
-      ui_dismiss_alert();
-    }
+    ui_set_display_active(false);
     gfx->displayOff();
     device_logf("INFO", "screen off %s", non_empty_reason(reason));
   }
@@ -220,16 +221,28 @@ static void toggle_screen(const char* reason) {
   set_screen_on(!screen_on, reason);
 }
 
-static void set_brightness_percent(int pct, const char* reason) {
+static void set_brightness_percent_internal(
+    int pct, const char* reason, bool show_overlay) {
   brightness_percent = clamp_brightness(pct);
+  device_settings_set_brightness(brightness_percent);
   if (!screen_on) {
     set_screen_on(true, "brightness");
   }
   apply_brightness();
-  ui_show_brightness(brightness_percent);
+  if (show_overlay) {
+    ui_show_brightness(brightness_percent);
+  }
   device_logf(
       "INFO", "brightness %d reason=%s", brightness_percent,
       non_empty_reason(reason));
+}
+
+static void set_brightness_percent(int pct, const char* reason) {
+  set_brightness_percent_internal(pct, reason, true);
+}
+
+static void settings_apply_brightness(int pct) {
+  set_brightness_percent_internal(pct, "settings", false);
 }
 
 static void adjust_brightness(int delta, const char* reason) {
@@ -450,6 +463,64 @@ static void handle_serial() {
         adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "serial");
       } else if (strncmp(buf, "brightness ", 11) == 0) {
         set_brightness_percent(atoi(buf + 11), "serial");
+      } else if (strcmp(buf, "theme") == 0) {
+        Serial.printf(
+            "THEME %s %s\n", ui_theme_id(), ui_theme_name());
+      } else if (strcmp(buf, "theme_list") == 0) {
+        for (size_t i = 0; i < theme_registry_count(); ++i) {
+          const ThemePack* theme = theme_registry_at(i);
+          if (theme) {
+            Serial.printf(
+                "THEME_ITEM %s %s%s\n", theme->id, theme->display_name,
+                strcmp(theme->id, ui_theme_id()) == 0 ? " *" : "");
+          }
+        }
+      } else if (strcmp(buf, "theme_next") == 0) {
+        ui_next_theme(1, true);
+      } else if (strcmp(buf, "theme_prev") == 0) {
+        ui_next_theme(-1, true);
+      } else if (strncmp(buf, "theme ", 6) == 0) {
+        Serial.println(
+            ui_set_theme(buf + 6, true) ? "THEME_OK" : "THEME_INVALID");
+      } else if (strcmp(buf, "settings_open") == 0) {
+        if (!ui_settings_visible()) ui_middle_short_press();
+      } else if (strcmp(buf, "settings_close") == 0) {
+        ui_close_settings();
+      } else if (strcmp(buf, "settings_state") == 0) {
+        const DeviceSettings& settings = device_settings_get();
+        Serial.printf(
+            "SETTINGS theme=%s preferred=%s bright=%u volume=%u auto=%d "
+            "interval=%u screen=%d\n",
+            ui_theme_id(), settings.theme_id,
+            settings.brightness_percent, settings.volume_percent,
+            settings.auto_theme_enabled ? 1 : 0,
+            settings.auto_theme_interval_minutes,
+            screen_on ? 1 : 0);
+      } else if (strcmp(buf, "auto_theme on") == 0) {
+        ui_set_auto_theme(true);
+        Serial.println("AUTO_THEME ON");
+      } else if (strcmp(buf, "auto_theme off") == 0) {
+        ui_set_auto_theme(false);
+        Serial.println("AUTO_THEME OFF");
+      } else if (strncmp(buf, "theme_interval ", 15) == 0) {
+        int minutes = 0;
+        if (parse_int_arg(buf + 15, &minutes) &&
+            minutes >= CODEXMETER_THEME_AUTO_MIN_MINUTES &&
+            minutes <= CODEXMETER_THEME_AUTO_MAX_MINUTES) {
+          ui_set_auto_theme_interval(static_cast<uint16_t>(minutes));
+          Serial.printf(
+              "THEME_INTERVAL %u\n", ui_auto_theme_interval());
+        } else {
+          Serial.println("THEME_INTERVAL_INVALID");
+        }
+      } else if (strncmp(buf, "volume ", 7) == 0) {
+        int volume = 0;
+        if (parse_int_arg(buf + 7, &volume)) {
+          ui_set_volume(volume);
+          Serial.printf("VOLUME %d\n", ui_volume());
+        } else {
+          Serial.println("VOLUME_INVALID");
+        }
       } else if (strcmp(buf, "imu") == 0) {
         imu_print_status(Serial);
       } else if (strcmp(buf, "identity") == 0) {
@@ -517,14 +588,26 @@ static void handle_button() {
     return accepted;
   };
 
-  if (pressed(&left)) {
-    adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "left");
+  if (pressed(&left) && screen_on) {
+    if (ui_settings_visible()) {
+      ui_settings_move(-1);
+    } else {
+      adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "left");
+    }
   }
-  if (pressed(&right)) {
-    adjust_brightness(CODEXMETER_BRIGHTNESS_STEP, "right");
+  if (pressed(&right) && screen_on) {
+    if (ui_settings_visible()) {
+      ui_settings_move(1);
+    } else {
+      adjust_brightness(CODEXMETER_BRIGHTNESS_STEP, "right");
+    }
   }
-  if (power_button_pressed()) {
-    toggle_screen("button");
+  PowerKeyEvent power_event = power_take_key_event();
+  if (power_event == PowerKeyEvent::LongPress) {
+    toggle_screen("button_hold");
+  } else if (
+      power_event == PowerKeyEvent::ShortPress && screen_on) {
+    ui_middle_short_press();
   }
 }
 
@@ -564,10 +647,15 @@ void setup() {
 
   pinMode(CODEXMETER_BUTTON_LEFT_PIN, INPUT_PULLUP);
   pinMode(CODEXMETER_BUTTON_RIGHT_PIN, INPUT_PULLUP);
+  device_settings_init();
+  brightness_percent = device_settings_get().brightness_percent;
   power_init();
   imu_init();
   display_init();
-  ui_init();
+  UiSystemHooks ui_hooks{};
+  ui_hooks.apply_brightness = settings_apply_brightness;
+  ui_init(ui_hooks);
+  ui_set_display_active(true);
   ui_set_battery(power_battery_percent(), power_is_charging());
   ble_service_init();
   ble_service_request_refresh();
@@ -596,6 +684,7 @@ void loop() {
   }
 #endif
   ui_tick();
+  device_settings_tick();
   power_tick();
   ble_service_tick();
   handle_ble_screen_policy();

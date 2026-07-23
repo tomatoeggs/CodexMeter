@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v2.2.0`](CHANGELOG.md)。
+当前稳定版本为 [`v3.0.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -21,15 +21,21 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 | --- | --- | --- |
 | ![CodexMeter 新版 Token 活动主页](docs/assets/token-dashboard.png) | ![CodexMeter 5h 和 7d 余量主页](docs/assets/dashboard.png) | ![CodexMeter 四行任务完成摘要](docs/assets/task-complete.png) |
 
+| Classic 主题 | Cyberpunk 主题 | 设备设置页 |
+| --- | --- | --- |
+| ![CodexMeter Classic 主题](docs/assets/token-dashboard.png) | ![CodexMeter Cyberpunk 主题](docs/verification/cyberpunk-theme-uppercase-title.png) | ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
+
 ## 主要功能
 
 - macOS 后台 daemon 定时读取 Codex 订阅剩余用量和每日 Token 活动。
 - 通过 BLE 蓝牙把用量和提醒发送到 Waveshare ESP32-S3-Touch-AMOLED-2.16。
 - 支持一台 Mac 同时驱动多台已登记的 CodexMeter；设备按稳定短 ID 自动发现和重连。
+- ESP32 端内置 `Classic` 与 `Cyberpunk` 主题；主题拥有独立布局和动画，并共享同一份只读仪表盘数据。
+- 中间键短按进入设备设置页，可调整主题、亮度、自动换肤开关与切换间隔；中间键长按切换亮屏/关屏。
+- 支持按 1–1440 分钟的有效展示时间自动轮换主题；关屏、设置页、任务提醒和系统浮层期间暂停计时。
 - Codex 返回 5h 窗口时保持原有的 5h/7d 余量主页；只返回 7d 窗口时自动切换为今日/近7天 Token 活动与 7d 余量主页。
 - 正常状态底部用小蓝点显示当前有几个 Codex 任务正在运行。
 - Codex 任务完成后触发红、黄、绿全屏闪动，然后显示“任务完成！”和任务摘要。
-- 中间按键可切换屏幕关闭和亮屏，左/右按键可调节屏幕亮度。
 - Mac 锁屏或 BLE 通信断开 5 分钟后可自动关屏；Mac 解锁或未锁屏时 BLE 恢复会自动亮屏。
 - 正常页会定时在 2px 范围内轻微漂移，降低 AMOLED 固定元素长期停留在同一批像素上的风险。
 - 通过板载 QMI8658 IMU 感知重力方向，自动旋转屏幕显示方向。
@@ -95,6 +101,9 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 - `hooks/codexmeter_start_hook.py`：Codex `UserPromptSubmit` hook，用于标记任务开始。
 - `hooks/codexmeter_stop_hook.py`：Codex `Stop` hook，用于标记任务结束并触发完成提醒。
 - `firmware/`：ESP32 固件，使用 PlatformIO、Arduino、LVGL、Arduino_GFX、ArduinoJson 和 NimBLE。
+- `firmware/src/theme*.{h,cpp}`：主题契约、注册表、运行时与自动轮换策略。
+- `firmware/src/classic_theme.*` / `cyberpunk_theme.*`：当前内置的两套仪表盘主题。
+- `firmware/src/device_settings.*`：带版本与 CRC 校验的设备端 NVS 设置。
 - `scripts/`：安装 hook 的辅助脚本。
 - `tools/capture_screenshot.py`：USB 串口截图采集工具，将 RGB565 帧缓冲转换为 PNG。
 - `tools/read_device_logs.py`：USB 串口日志查询工具，用于读取 ESP32 环形日志。
@@ -104,6 +113,8 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 - `logs.sh`：ESP32 日志查询工具入口。
 - `codex_limits_demo.py`：此前已验证过的 Codex 用量获取 demo，本项目以它作为额度读取逻辑的参考来源。
 - `docs/architecture.md`：架构说明。
+- `docs/theme-architecture.md`：ESP32 多主题、设置与后续场景扩展说明。
+- `docs/themes*.md`：主题设计稿与视觉方向记录。
 - `LICENSE`：项目使用的 MIT License。
 - `NOTICE.md`：第三方项目参考与许可说明。
 - `CONTRIBUTING.md`：贡献指南。
@@ -123,9 +134,9 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 按键：
 
-- 左键：GPIO0，降低亮度。
-- 中键：AXP2101 PKEY，切换亮屏/关屏。
-- 右键：GPIO18，增加亮度。
+- 左键（GPIO0）：仪表盘降低亮度；设置页向上选择或减小当前值。
+- 中键（AXP2101 PKEY）：短按进入设置、编辑或确认；长按切换亮屏/关屏。
+- 右键（GPIO18）：仪表盘增加亮度；设置页向下选择或增大当前值。
 
 板级引脚配置集中放在 `firmware/include/config.h`。如果硬件版本不同，优先修改这个文件。
 
@@ -209,15 +220,27 @@ daemon 不读取、不打印 Codex 登录 token。
 
 两种布局共同包含：
 
-- 顶部左侧显示 Codex 标识。
-- 顶部右侧显示电量百分比和电池图标，电池填充色会根据电量变为绿色、黄色或红色。
-- 底部空白区域显示运行中 Codex 任务数：1 个任务显示 1 个小蓝点，2 个任务显示 2 个小蓝点；没有运行中任务时隐藏。
-- 中间按键短按可切换 AMOLED 亮屏和关闭；屏幕关闭时 BLE、任务计数、日志和用量刷新仍会继续运行。
-- 左/右按键短按分别降低/增加亮度；亮度范围为 10%-100%，每次调整 10%，调整后会显示 3 秒亮度进度条。
+- 当前主题自行决定标识、电量、Token、额度、重置窗口和任务指示的具体排版；`Classic` 与 `Cyberpunk` 使用完全独立的 LVGL 结构。
+- 运行中任务数最多显示 6 个指示点；没有运行中任务时隐藏。
+- 仪表盘中左/右按键短按分别降低/增加亮度；亮度范围为 10%-100%，每次调整 10%，调整后显示 3 秒亮度进度条。
+- 中间键短按进入设置页，长按切换 AMOLED 亮屏和关闭；屏幕关闭时 BLE、任务计数、日志和用量刷新仍会继续运行。
 - Mac 锁屏持续 5 分钟后，daemon 会发送关屏控制；Mac 解锁后会立即发送亮屏控制。
 - ESP32 与 Mac 的 BLE 通信断开持续 5 分钟后，固件会本地关屏；通信恢复时，只有 Mac 当前未锁屏才会由 daemon 发送亮屏控制。
 - 正常页每 10 分钟在 2px 范围内整体轻微漂移；任务完成提醒和亮度浮层不参与漂移。
 - 设备旋转时，固件会读取 QMI8658 加速度计并在 0/90/180/270 度之间自动切换显示方向；切换时会短暂压暗屏幕并重绘，减少半帧撕裂感。
+
+## 主题与设备设置
+
+主题系统完全运行在 ESP32 展现层。macOS daemon 仍只同步用量、任务活动、提醒和屏幕控制，换肤不需要新增 BLE payload，也不会让 Mac 端持有设备主题状态。
+
+当前内置主题：
+
+- `classic`：延续原有 CodexMeter 深色卡片布局。
+- `cyberpunk`：以高对比黄、青、红和工业信息面板构成的 Cyberpunk 2077 风格仪表盘。
+
+设置页包含主题、屏幕亮度、音量、自动换肤、切换间隔和退出设置。音量值当前仅作为持久化能力预留，目标硬件尚未接入声音输出。设置页 30 秒无操作会自动退出；编辑中的未确认值会恢复。自动换肤只累计仪表盘真正可见的时间，范围为 1 分钟至 24 小时。
+
+主题接口已为开机动画和任务完成页预留独立扩展点，当前这两个场景继续使用系统默认实现。新增主题时请参阅 [`docs/theme-architecture.md`](docs/theme-architecture.md)。
 
 ## 多设备
 
@@ -312,6 +335,19 @@ screen_toggle
 brightness_down
 brightness_up
 brightness 80
+theme
+theme_list
+theme_next
+theme_prev
+theme classic
+theme cyberpunk
+settings_open
+settings_close
+settings_state
+auto_theme on
+auto_theme off
+theme_interval 10
+volume 50
 imu
 rotate auto
 rotate 0

@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <defs>
+    <clipPath id="cyber-screen">
+      <rect x="70" y="118" width="480" height="480" rx="28"/>
+    </clipPath>
+    <clipPath id="nothing-screen">
+      <rect x="650" y="118" width="480" height="480" rx="28"/>
+    </clipPath>
+    <pattern id="scanline" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="1" fill="#ffffff" opacity=".035"/>
+    </pattern>
+    <pattern id="white-dots" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.75" fill="#f2f2ed"/>
+    </pattern>
+    <pattern id="gray-dots" width="7" height="7" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.3" fill="#777774"/>
+    </pattern>
+    <filter id="screen-shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity=".42"/>
+    </filter>
+    <filter id="cyan-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glyph-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="dot-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="680" fill="#151515"/>
+  <path d="M0 78H1200" stroke="#343434"/>
+  <text x="70" y="48" fill="#fcdf0a" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="21" font-weight="700" letter-spacing="3">01 / CYBERPUNK INDUSTRIAL HUD</text>
+  <text x="650" y="48" fill="#f2f2ed" font-family="Monaco, monospace" font-size="18" letter-spacing="2">02 / NOTHING • DOT SIGNAL</text>
+  <text x="70" y="83" fill="#787878" font-family="Monaco, monospace" font-size="12" letter-spacing="1.5">ACID YELLOW / DATA CYAN / SYSTEM RED / ASYMMETRIC</text>
+  <text x="650" y="83" fill="#787878" font-family="Monaco, monospace" font-size="12" letter-spacing="1.5">SINGLE-LINE DOTS / MONO DATA / RED STATUS / NEGATIVE SPACE</text>
+
+  <!-- Cyberpunk industrial HUD -->
+  <g filter="url(#screen-shadow)">
+    <rect x="70" y="118" width="480" height="480" rx="28" fill="#090a0d"/>
+  </g>
+  <g clip-path="url(#cyber-screen)">
+    <rect x="70" y="118" width="480" height="480" fill="#090a0d"/>
+    <rect x="70" y="118" width="480" height="480" fill="url(#scanline)"/>
+
+    <!-- signature yellow header -->
+    <path d="M70 118H550V189H512L493 170H70Z" fill="#fcdf0a"/>
+    <path d="M479 118H550V149L532 167H518L495 144H479Z" fill="#0a0a0b"/>
+    <path d="M486 123L530 167M499 118L540 159M518 118L550 150" stroke="#fcdf0a" stroke-width="3"/>
+    <text x="92" y="157" fill="#08090b" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="24" font-weight="900" letter-spacing=".4">CODEX//METER</text>
+    <text x="94" y="178" fill="#08090b" font-family="Monaco, monospace" font-size="8" font-weight="700" letter-spacing="1.8">LOCAL SUBSCRIPTION MONITOR</text>
+    <text x="294" y="153" fill="#08090b" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="18" font-weight="900" letter-spacing="1.3">TOKEN FLOW</text>
+    <text x="294" y="176" fill="#08090b" font-family="Monaco, monospace" font-size="9" font-weight="700">SYNC 14:32:09 / NODE 07</text>
+
+    <!-- micro side rail -->
+    <rect x="70" y="189" width="17" height="356" fill="#fcdf0a"/>
+    <text x="81" y="526" fill="#090a0d" font-family="Monaco, monospace" font-size="8" font-weight="700" letter-spacing="2" transform="rotate(-90 81 526)">CODEXMETER // BLE LINKED // SYNC OK</text>
+
+    <!-- large asymmetrical today block -->
+    <path d="M99 207H360L380 227V350H99Z" fill="#15171d" stroke="#fcdf0a" stroke-width="1.5"/>
+    <path d="M99 207H236L248 219H99Z" fill="#fcdf0a"/>
+    <text x="111" y="237" fill="#fcdf0a" font-family="Monaco, monospace" font-size="10" font-weight="700" letter-spacing="2">TODAY / TOKEN BURN</text>
+    <text x="112" y="310" fill="#f5f6f2" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="78" font-weight="900" letter-spacing="-2">096.2</text>
+    <text x="340" y="310" fill="#00f0ff" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="29" font-weight="900">M</text>
+    <rect x="111" y="327" width="224" height="4" fill="#252834"/>
+    <rect x="111" y="327" width="62" height="4" fill="#00f0ff" filter="url(#cyan-glow)"/>
+    <text x="205" y="334" fill="#767b88" font-family="Monaco, monospace" font-size="7">TODAY / 7D SHARE 27.7%</text>
+
+    <!-- glitch marks -->
+    <rect x="104" y="274" width="51" height="4" fill="#ff003c"/>
+    <rect x="151" y="279" width="37" height="2" fill="#00f0ff"/>
+    <rect x="347" y="220" width="38" height="7" fill="#ff003c"/>
+    <text x="348" y="226" fill="#ffffff" font-family="Monaco, monospace" font-size="6" font-weight="700">LIVE</text>
+
+    <!-- right telemetry block -->
+    <path d="M394 207H535V312L521 326H394Z" fill="#00f0ff"/>
+    <text x="409" y="232" fill="#071012" font-family="Monaco, monospace" font-size="8" font-weight="700" letter-spacing="1.3">7D TOTAL</text>
+    <text x="408" y="278" fill="#071012" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="43" font-weight="900" letter-spacing="-1">347M</text>
+    <path d="M408 293H522M408 299H487M408 305H506" stroke="#071012" stroke-width="2"/>
+    <path d="M394 337H535V350H414Z" fill="#ff003c"/>
+    <text x="408" y="347" fill="#ffffff" font-family="Monaco, monospace" font-size="7" font-weight="700">ROLLING WINDOW</text>
+
+    <!-- quota strip replaces second card -->
+    <path d="M99 369H535V502H500L478 524H99Z" fill="#111318" stroke="#3c414e"/>
+    <path d="M99 369H214L228 383H99Z" fill="#fcdf0a"/>
+    <text x="111" y="399" fill="#a7abb5" font-family="Monaco, monospace" font-size="9" font-weight="700" letter-spacing="1.7">7D QUOTA REMAINING</text>
+    <text x="108" y="480" fill="#f5f6f2" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="91" font-weight="900" letter-spacing="-3">83</text>
+    <text x="204" y="462" fill="#fcdf0a" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="35" font-weight="900">%</text>
+    <path d="M272 398H512" stroke="#282c35" stroke-width="1"/>
+    <path d="M272 419H475" stroke="#00f0ff" stroke-width="5"/>
+    <path d="M475 419H512" stroke="#ff003c" stroke-width="5"/>
+    <text x="272" y="445" fill="#676d79" font-family="Monaco, monospace" font-size="9">RESET WINDOW</text>
+    <text x="272" y="479" fill="#f5f6f2" font-family="Avenir Next Condensed, DIN Condensed, sans-serif" font-size="31" font-weight="800">06D : 14H</text>
+    <path d="M477 487H535V524H497L477 504Z" fill="#ff003c"/>
+    <text x="497" y="511" fill="#ffffff" font-family="Monaco, monospace" font-size="8" font-weight="700">OK</text>
+
+    <!-- task activity rail -->
+    <path d="M87 545H535V582H87Z" fill="#0c0e12"/>
+    <text x="103" y="567" fill="#626875" font-family="Monaco, monospace" font-size="8" letter-spacing="1.4">ACTIVE THREADS</text>
+    <path d="M220 554L229 563L220 572L211 563Z" fill="#00f0ff" filter="url(#cyan-glow)"/>
+    <path d="M248 554L257 563L248 572L239 563Z" fill="#fcdf0a"/>
+    <text x="282" y="567" fill="#ff003c" font-family="Monaco, monospace" font-size="8" font-weight="700">02 / RUNNING</text>
+    <path d="M448 549H517L528 560V576H448Z" fill="none" stroke="#343945"/>
+    <text x="457" y="558" fill="#777d89" font-family="Monaco, monospace" font-size="5.5" letter-spacing=".8">BATTERY</text>
+    <rect x="457" y="564" width="20" height="9" rx="1" fill="none" stroke="#fcdf0a" stroke-width="1"/>
+    <rect x="478" y="567" width="2" height="3" fill="#fcdf0a"/>
+    <rect x="459" y="566" width="15" height="5" fill="#fcdf0a"/>
+    <text x="487" y="572" fill="#f5f6f2" font-family="Monaco, monospace" font-size="9" font-weight="700">87%</text>
+  </g>
+
+  <!-- Nothing glyph matrix -->
+  <g filter="url(#screen-shadow)">
+    <rect x="650" y="118" width="480" height="480" rx="28" fill="#000000"/>
+  </g>
+  <g clip-path="url(#nothing-screen)">
+    <rect x="650" y="118" width="480" height="480" fill="#000000"/>
+
+    <!-- single visual language: dot mark + mono data -->
+    <g fill="#777774">
+      <circle cx="680" cy="142" r="2.3"/><circle cx="688" cy="142" r="2.3"/><circle cx="696" cy="142" r="2.3"/>
+      <circle cx="680" cy="150" r="2.3"/><circle cx="688" cy="150" r="2.3"/><circle cx="696" cy="150" r="2.3"/>
+      <circle cx="680" cy="158" r="2.3"/><circle cx="688" cy="158" r="2.3"/>
+    </g>
+    <circle cx="696" cy="158" r="2.7" fill="#e33b2e"/>
+    <text x="714" y="150" fill="#a6a6a1" font-family="Monaco, monospace" font-size="8" letter-spacing="1.7">CODEX METER</text>
+    <text x="714" y="164" fill="#41413f" font-family="Monaco, monospace" font-size="7" letter-spacing="1.2">DOT SIGNAL / 06</text>
+
+    <!-- explicit battery state -->
+    <text x="1010" y="151" fill="#777774" font-family="Monaco, monospace" font-size="8" text-anchor="end" letter-spacing="1">BAT 87%</text>
+    <rect x="1023" y="141" width="29" height="14" rx="1" fill="none" stroke="#777774" stroke-width="1.2"/>
+    <rect x="1053" y="145" width="3" height="6" fill="#777774"/>
+    <rect x="1026" y="144" width="20" height="8" fill="#f2f2ed"/>
+    <path d="M680 181H1100" stroke="#20201f"/>
+
+    <!-- hero: the only dot-matrix data on screen -->
+    <circle cx="890" cy="198" r="3" fill="#e33b2e"/>
+    <text x="890" y="218" fill="#585856" font-family="Monaco, monospace" font-size="8" text-anchor="middle" letter-spacing="2">7D QUOTA</text>
+    <text x="890" y="236" fill="#b8b8b3" font-family="Monaco, monospace" font-size="10" text-anchor="middle" letter-spacing="2.4">REMAINING</text>
+
+    <!-- 8 / six columns x nine rows, one-dot-wide strokes -->
+    <g fill="#f2f2ed" filter="url(#dot-glow)">
+      <circle cx="806" cy="256" r="4.2"/><circle cx="822" cy="256" r="4.2"/><circle cx="838" cy="256" r="4.2"/><circle cx="854" cy="256" r="4.2"/>
+      <circle cx="790" cy="270" r="4.2"/><circle cx="870" cy="270" r="4.2"/>
+      <circle cx="790" cy="284" r="4.2"/><circle cx="870" cy="284" r="4.2"/>
+      <circle cx="790" cy="298" r="4.2"/><circle cx="870" cy="298" r="4.2"/>
+      <circle cx="806" cy="312" r="4.2"/><circle cx="822" cy="312" r="4.2"/><circle cx="838" cy="312" r="4.2"/><circle cx="854" cy="312" r="4.2"/>
+      <circle cx="790" cy="326" r="4.2"/><circle cx="870" cy="326" r="4.2"/>
+      <circle cx="790" cy="340" r="4.2"/><circle cx="870" cy="340" r="4.2"/>
+      <circle cx="790" cy="354" r="4.2"/><circle cx="870" cy="354" r="4.2"/>
+      <circle cx="806" cy="368" r="4.2"/><circle cx="822" cy="368" r="4.2"/><circle cx="838" cy="368" r="4.2"/><circle cx="854" cy="368" r="4.2"/>
+
+      <!-- 3 / identical grid rhythm -->
+      <circle cx="902" cy="256" r="4.2"/><circle cx="918" cy="256" r="4.2"/><circle cx="934" cy="256" r="4.2"/><circle cx="950" cy="256" r="4.2"/>
+      <circle cx="966" cy="270" r="4.2"/><circle cx="966" cy="284" r="4.2"/><circle cx="966" cy="298" r="4.2"/>
+      <circle cx="902" cy="312" r="4.2"/><circle cx="918" cy="312" r="4.2"/><circle cx="934" cy="312" r="4.2"/><circle cx="950" cy="312" r="4.2"/>
+      <circle cx="966" cy="326" r="4.2"/><circle cx="966" cy="340" r="4.2"/><circle cx="966" cy="354" r="4.2"/>
+      <circle cx="902" cy="368" r="4.2"/><circle cx="918" cy="368" r="4.2"/><circle cx="934" cy="368" r="4.2"/><circle cx="950" cy="368" r="4.2"/>
+    </g>
+    <text x="990" y="361" fill="#777774" font-family="Monaco, monospace" font-size="17">%</text>
+
+    <!-- supporting token data; no cards and no secondary display font -->
+    <path d="M680 395H1100" stroke="#242422"/>
+    <circle cx="680" cy="395" r="3" fill="#e33b2e"/>
+    <text x="682" y="420" fill="#555553" font-family="Monaco, monospace" font-size="8" letter-spacing="1.8">TODAY</text>
+    <text x="682" y="458" fill="#f2f2ed" font-family="Monaco, monospace" font-size="27" letter-spacing="-1">96.2M</text>
+    <path d="M890 411V466" stroke="#20201f"/>
+    <text x="918" y="420" fill="#555553" font-family="Monaco, monospace" font-size="8" letter-spacing="1.8">7 DAYS</text>
+    <text x="918" y="458" fill="#a6a6a1" font-family="Monaco, monospace" font-size="27" letter-spacing="-1">347M</text>
+
+    <!-- operational data follows the same two-column rhythm -->
+    <path d="M680 480H1100" stroke="#20201f"/>
+    <text x="682" y="503" fill="#555553" font-family="Monaco, monospace" font-size="8" letter-spacing="1.8">RESET IN</text>
+    <text x="682" y="529" fill="#9a9a96" font-family="Monaco, monospace" font-size="18" letter-spacing=".4">06D 14H</text>
+    <text x="918" y="503" fill="#555553" font-family="Monaco, monospace" font-size="8" letter-spacing="1.8">ACTIVE</text>
+    <text x="918" y="529" fill="#9a9a96" font-family="Monaco, monospace" font-size="18">02</text>
+    <text x="951" y="528" fill="#555553" font-family="Monaco, monospace" font-size="8" letter-spacing="1.2">THREADS</text>
+
+    <!-- quiet device footer -->
+    <path d="M650 548H1130" stroke="#1f1f1e"/>
+    <text x="680" y="574" fill="#454543" font-family="Monaco, monospace" font-size="7" letter-spacing="1.4">LOCAL / 14:32</text>
+    <g fill="#777774">
+      <circle cx="872" cy="566" r="2.5"/><circle cx="880" cy="566" r="2.5"/><circle cx="888" cy="566" r="2.5"/>
+      <circle cx="872" cy="574" r="2.5"/><circle cx="880" cy="574" r="2.5"/>
+    </g>
+    <circle cx="888" cy="574" r="2.8" fill="#e33b2e"/>
+    <text x="1100" y="574" fill="#454543" font-family="Monaco, monospace" font-size="7" text-anchor="end" letter-spacing="1.4">BLE LINKED</text>
+  </g>
+
+  <!-- board footer -->
+  <text x="70" y="636" fill="#666666" font-family="Monaco, monospace" font-size="10" letter-spacing="1.4">DESIGN STUDY / 480 × 480 AMOLED / NO IMPLEMENTATION</text>
+  <circle cx="1088" cy="632" r="4" fill="#e33b2e"/>
+  <text x="1101" y="636" fill="#666666" font-family="Monaco, monospace" font-size="9" text-anchor="end">V6 / DOT SIGNAL</text>
+</svg>

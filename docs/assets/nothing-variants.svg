@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1190" height="720" viewBox="0 0 1190 720">
+  <defs>
+    <clipPath id="screen-a"><rect x="70" y="140" width="480" height="480" rx="28"/></clipPath>
+    <clipPath id="screen-c"><rect x="1210" y="140" width="480" height="480" rx="28"/></clipPath>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity=".44"/>
+    </filter>
+    <filter id="soft-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="1.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glyph-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Reusable single-stroke dot digits on a 6 x 9 grid. -->
+    <g id="dot-8">
+      <circle cx="16" cy="0" r="4.2"/><circle cx="32" cy="0" r="4.2"/><circle cx="48" cy="0" r="4.2"/><circle cx="64" cy="0" r="4.2"/>
+      <circle cx="0" cy="14" r="4.2"/><circle cx="80" cy="14" r="4.2"/>
+      <circle cx="0" cy="28" r="4.2"/><circle cx="80" cy="28" r="4.2"/>
+      <circle cx="0" cy="42" r="4.2"/><circle cx="80" cy="42" r="4.2"/>
+      <circle cx="16" cy="56" r="4.2"/><circle cx="32" cy="56" r="4.2"/><circle cx="48" cy="56" r="4.2"/><circle cx="64" cy="56" r="4.2"/>
+      <circle cx="0" cy="70" r="4.2"/><circle cx="80" cy="70" r="4.2"/>
+      <circle cx="0" cy="84" r="4.2"/><circle cx="80" cy="84" r="4.2"/>
+      <circle cx="0" cy="98" r="4.2"/><circle cx="80" cy="98" r="4.2"/>
+      <circle cx="16" cy="112" r="4.2"/><circle cx="32" cy="112" r="4.2"/><circle cx="48" cy="112" r="4.2"/><circle cx="64" cy="112" r="4.2"/>
+    </g>
+    <g id="dot-3">
+      <circle cx="16" cy="0" r="4.2"/><circle cx="32" cy="0" r="4.2"/><circle cx="48" cy="0" r="4.2"/><circle cx="64" cy="0" r="4.2"/>
+      <circle cx="80" cy="14" r="4.2"/><circle cx="80" cy="28" r="4.2"/><circle cx="80" cy="42" r="4.2"/>
+      <circle cx="16" cy="56" r="4.2"/><circle cx="32" cy="56" r="4.2"/><circle cx="48" cy="56" r="4.2"/><circle cx="64" cy="56" r="4.2"/>
+      <circle cx="80" cy="70" r="4.2"/><circle cx="80" cy="84" r="4.2"/><circle cx="80" cy="98" r="4.2"/>
+      <circle cx="16" cy="112" r="4.2"/><circle cx="32" cy="112" r="4.2"/><circle cx="48" cy="112" r="4.2"/><circle cx="64" cy="112" r="4.2"/>
+    </g>
+  </defs>
+
+  <rect width="1190" height="720" fill="#151515"/>
+  <path d="M0 105H1190" stroke="#333331"/>
+
+  <text x="70" y="43" fill="#f2f2ed" font-family="Monaco, monospace" font-size="18" letter-spacing="2">A / GLYPH ORBIT</text>
+  <text x="70" y="76" fill="#6e6e6b" font-family="Monaco, monospace" font-size="10" letter-spacing="1.4">KINETIC DIAL / QUOTA AS MOTION / CENTERED FOCUS</text>
+  <text x="640" y="43" fill="#f2f2ed" font-family="Monaco, monospace" font-size="18" letter-spacing="2">B / SIGNAL SPINE</text>
+  <text x="640" y="76" fill="#6e6e6b" font-family="Monaco, monospace" font-size="10" letter-spacing="1.4">VERTICAL TRACE / SIDE TELEMETRY / DEVICE RHYTHM</text>
+
+  <!-- A / Glyph Orbit -->
+  <g filter="url(#shadow)"><rect x="70" y="140" width="480" height="480" rx="28" fill="#000000"/></g>
+  <g clip-path="url(#screen-a)">
+    <rect x="70" y="140" width="480" height="480" fill="#000000"/>
+    <g fill="#777774">
+      <circle cx="96" cy="164" r="2.3"/><circle cx="104" cy="164" r="2.3"/><circle cx="112" cy="164" r="2.3"/>
+      <circle cx="96" cy="172" r="2.3"/><circle cx="104" cy="172" r="2.3"/><circle cx="112" cy="172" r="2.3"/>
+    </g>
+    <circle cx="112" cy="172" r="2.8" fill="#e33b2e"/>
+    <text x="130" y="180" fill="#c4c4bf" font-family="Monaco, monospace" font-size="20">CODEX METER</text>
+    <text x="455" y="180" fill="#b8b8b3" font-family="Monaco, monospace" font-size="20" text-anchor="end">BAT 87%</text>
+    <rect x="470" y="160" width="29" height="14" rx="1" fill="none" stroke="#777774"/>
+    <rect x="500" y="164" width="3" height="6" fill="#777774"/><rect x="473" y="163" width="20" height="8" fill="#f2f2ed"/>
+    <path d="M94 199H526" stroke="#20201f"/>
+
+    <!-- Reset belongs to the quota module; the two lines remain open, not a second status bar. -->
+    <text x="310" y="222" fill="#c4c4bf" font-family="Monaco, monospace" font-size="20" text-anchor="middle">7D REMAINING</text>
+    <text x="310" y="249" fill="#8f8f8b" font-family="Monaco, monospace" font-size="20" text-anchor="middle">RESET 06D 14H</text>
+
+    <g transform="rotate(-90 310 360)">
+      <circle cx="310" cy="360" r="100" fill="none" stroke="#242422" stroke-width="1.2" stroke-dasharray="1 10" stroke-linecap="round"/>
+      <circle cx="310" cy="360" r="90" fill="none" stroke="#f2f2ed" stroke-width="8" stroke-dasharray="184 15 144 15 141 66" stroke-linecap="round" filter="url(#glyph-glow)" opacity=".9"/>
+      <circle cx="310" cy="360" r="80" fill="none" stroke="#2f2f2d" stroke-width="1.5" stroke-dasharray="1 8" stroke-linecap="round"/>
+    </g>
+    <circle cx="310" cy="360" r="79" fill="#000000"/>
+    <circle cx="226" cy="306" r="4" fill="#e33b2e"/>
+    <g fill="#f2f2ed" filter="url(#soft-glow)">
+      <use href="#dot-8" transform="translate(247 325) scale(.63)"/>
+      <use href="#dot-3" transform="translate(323 325) scale(.63)"/>
+    </g>
+    <text x="310" y="438" fill="#999995" font-family="Monaco, monospace" font-size="24" text-anchor="middle">%</text>
+
+    <!-- Two-row data deck prevents labels and values from competing for width. -->
+    <path d="M94 474H526" stroke="#20201f"/>
+    <text x="94" y="498" fill="#999995" font-family="Monaco, monospace" font-size="20">TODAY</text>
+    <text x="94" y="535" fill="#f2f2ed" font-family="Monaco, monospace" font-size="30">96.2M</text>
+    <path d="M310 484V540" stroke="#20201f"/>
+    <text x="338" y="498" fill="#999995" font-family="Monaco, monospace" font-size="20">7 DAYS</text>
+    <text x="338" y="535" fill="#c4c4bf" font-family="Monaco, monospace" font-size="30">347M</text>
+    <path d="M70 548H550" stroke="#1f1f1e"/>
+    <text x="94" y="596" fill="#c4c4bf" font-family="Monaco, monospace" font-size="20">02 ACTIVE</text>
+    <text x="526" y="596" fill="#aaa9a5" font-family="Monaco, monospace" font-size="20" text-anchor="end">BLE LINKED</text>
+  </g>
+
+  <!-- B / Signal Spine -->
+  <g transform="translate(-570 0)">
+  <g filter="url(#shadow)"><rect x="1210" y="140" width="480" height="480" rx="28" fill="#000000"/></g>
+  <g clip-path="url(#screen-c)">
+    <rect x="1210" y="140" width="480" height="480" fill="#000000"/>
+    <text x="1238" y="181" fill="#c4c4bf" font-family="Monaco, monospace" font-size="20">CODEX METER</text>
+    <text x="1664" y="181" fill="#b8b8b3" font-family="Monaco, monospace" font-size="20" text-anchor="end">BAT 87%</text>
+    <path d="M1238 199H1664" stroke="#20201f"/>
+
+    <!-- A small optical offset balances the denser quota block against the usage block. -->
+    <path d="M1470 216V464" stroke="#252523"/>
+    <g fill="#f2f2ed" filter="url(#soft-glow)">
+      <circle cx="1470" cy="224" r="4"/><circle cx="1470" cy="244" r="4"/><circle cx="1470" cy="264" r="4"/><circle cx="1470" cy="284" r="4"/>
+      <circle cx="1470" cy="304" r="4"/><circle cx="1470" cy="324" r="4"/><circle cx="1470" cy="344" r="4"/><circle cx="1470" cy="364" r="4"/>
+      <circle cx="1470" cy="384" r="4"/><circle cx="1470" cy="404" r="4"/>
+    </g>
+    <circle cx="1470" cy="424" r="4" fill="#3c3c39"/><circle cx="1470" cy="444" r="4" fill="#3c3c39"/>
+    <circle cx="1470" cy="414" r="3" fill="#e33b2e"/>
+
+    <!-- Both information modules are centered within equal-width halves. -->
+    <text x="1354" y="249" fill="#b8b8b3" font-family="Monaco, monospace" font-size="20" text-anchor="middle">7D REMAINING</text>
+    <g fill="#f2f2ed" filter="url(#soft-glow)">
+      <use href="#dot-8" transform="translate(1272 270) scale(.84)"/>
+      <use href="#dot-3" transform="translate(1367 270) scale(.84)"/>
+    </g>
+    <text x="1354" y="392" fill="#999995" font-family="Monaco, monospace" font-size="22" text-anchor="middle">%</text>
+    <text x="1354" y="422" fill="#999995" font-family="Monaco, monospace" font-size="20" text-anchor="middle">RESET</text>
+    <text x="1354" y="458" fill="#c4c4bf" font-family="Monaco, monospace" font-size="28" text-anchor="middle">06D 14H</text>
+
+    <!-- Open typography only: larger values centered in the available side column. -->
+    <text x="1567" y="251" fill="#999995" font-family="Monaco, monospace" font-size="22" text-anchor="middle">TODAY</text>
+    <text x="1567" y="303" fill="#f2f2ed" font-family="Monaco, monospace" font-size="38" text-anchor="middle">96.2M</text>
+    <path d="M1496 337H1638" stroke="#282826"/>
+    <text x="1567" y="379" fill="#999995" font-family="Monaco, monospace" font-size="22" text-anchor="middle">7 DAYS</text>
+    <text x="1567" y="431" fill="#c4c4bf" font-family="Monaco, monospace" font-size="40" text-anchor="middle">347M</text>
+
+    <path d="M1238 500H1664" stroke="#20201f"/>
+    <!-- A single quiet footer row: two shallow arcs equal two running tasks. -->
+    <text x="1238" y="570" fill="#999995" font-family="Monaco, monospace" font-size="20">ACTIVE TASKS</text>
+    <g fill="none" stroke="#b8b8b3" stroke-width="3" stroke-linecap="round" opacity=".78">
+      <path d="M1464 568Q1482 550 1500 568"/>
+      <path d="M1512 568Q1530 550 1548 568"/>
+    </g>
+    <circle cx="1500" cy="568" r="2.5" fill="#e33b2e"/>
+    <circle cx="1548" cy="568" r="2.5" fill="#e33b2e"/>
+    <text x="1664" y="573" fill="#c4c4bf" font-family="Monaco, monospace" font-size="26" text-anchor="end">02</text>
+  </g>
+  </g>
+
+  <text x="70" y="675" fill="#666663" font-family="Monaco, monospace" font-size="9" letter-spacing="1.4">NOTHING THEME STUDY / TWO DIRECTIONS / 480 x 480 AMOLED / NO IMPLEMENTATION</text>
+  <text x="1120" y="675" fill="#666663" font-family="Monaco, monospace" font-size="9" text-anchor="end">V19 / OPTICAL BALANCE</text>
+</svg>

@@ -11,10 +11,12 @@ static XPowersPMU pmu;
 static bool pmu_ready = false;
 static int cached_pct = -1;
 static bool cached_charging = false;
-static bool pwr_pressed = false;
+static PowerKeyEvent pending_key_event = PowerKeyEvent::None;
 static uint32_t last_battery_ms = 0;
 static uint32_t last_charging_ms = 0;
 static uint32_t last_pwr_ms = 0;
+static uint32_t suppress_short_until_ms = 0;
+static bool suppress_short_press = false;
 
 void power_init() {
   pmu_ready = pmu.begin(Wire, CODEXMETER_AXP2101_ADDR, CODEXMETER_I2C_SDA,
@@ -28,7 +30,10 @@ void power_init() {
   pmu.enableBattVoltageMeasure();
   pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
   pmu.clearIrqStatus();
-  pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ);
+  pmu.enableIRQ(
+      XPOWERS_AXP2101_PKEY_SHORT_IRQ |
+      XPOWERS_AXP2101_PKEY_LONG_IRQ);
+  pmu.setPowerKeyPressOnTime(XPOWERS_POWERON_2S);
   pmu.setPowerKeyPressOffTime(XPOWERS_POWEROFF_8S);
 
   cached_pct = pmu.getBatteryPercent();
@@ -51,8 +56,21 @@ void power_tick() {
   if (now - last_pwr_ms >= 50) {
     last_pwr_ms = now;
     pmu.getIrqStatus();
-    if (pmu.isPekeyShortPressIrq()) {
-      pwr_pressed = true;
+    bool long_press = pmu.isPekeyLongPressIrq();
+    bool short_press = pmu.isPekeyShortPressIrq();
+    if (long_press) {
+      pending_key_event = PowerKeyEvent::LongPress;
+      suppress_short_until_ms = now + 1000;
+      suppress_short_press = true;
+      device_logf("INFO", "power key long press");
+    } else {
+      if (suppress_short_press &&
+          static_cast<int32_t>(now - suppress_short_until_ms) >= 0) {
+        suppress_short_press = false;
+      }
+    }
+    if (short_press && !long_press && !suppress_short_press) {
+      pending_key_event = PowerKeyEvent::ShortPress;
       device_logf("INFO", "power key short press");
     }
     pmu.clearIrqStatus();
@@ -67,8 +85,8 @@ bool power_is_charging() {
   return cached_charging;
 }
 
-bool power_button_pressed() {
-  if (!pwr_pressed) return false;
-  pwr_pressed = false;
-  return true;
+PowerKeyEvent power_take_key_event() {
+  PowerKeyEvent event = pending_key_event;
+  pending_key_event = PowerKeyEvent::None;
+  return event;
 }
