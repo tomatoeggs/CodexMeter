@@ -1,0 +1,31 @@
+NOTICE.md
+  s_2f92895fcacdf5::t_1a3fb7e53be557 24-27
+firmware/data/fonts/README.md
+  s_2f92895fcacdf5::t_40bd38c12d988b 18-25
+firmware/data/themes/README.md
+  s_2f92895fcacdf5::t_964b20f767d2a6 1-16
+firmware/src/animal_crossing_theme.cpp
+  s_2f92895fcacdf5::t_10ad4b49a21e75 1-908
+firmware/src/animal_crossing_theme.h
+  s_2f92895fcacdf5::t_daa03ca20796fd 1-5
+firmware/src/theme_registry.cpp
+  s_2f92895fcacdf5::t_160390f54ad122 5,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "76f2b799738006c908674d2d1d3e8274e777aa95",
+  "prompts": {},
+  "sessions": {
+    "s_2f92895fcacdf5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f89ff-0680-7ad0-ac52-3e126093b967",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
