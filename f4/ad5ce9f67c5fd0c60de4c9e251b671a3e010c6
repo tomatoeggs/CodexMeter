@@ -1,0 +1,25 @@
+docs/themes-games.md
+  s_2f92895fcacdf5::t_9e77d7fde31022 1,5,18-25,55,57
+firmware/src/famicom_theme.h
+  s_2f92895fcacdf5::t_d0db0688f426f7 1-5
+firmware/src/theme_registry.cpp
+  s_2f92895fcacdf5::t_d1bf2836c7b8dd 7,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f4ad5ce9f67c5fd0c60de4c9e251b671a3e010c6",
+  "prompts": {},
+  "sessions": {
+    "s_2f92895fcacdf5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f89ff-0680-7ad0-ac52-3e126093b967",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
