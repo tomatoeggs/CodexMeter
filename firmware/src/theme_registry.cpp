@@ -4,12 +4,14 @@
 
 #include "classic_theme.h"
 #include "cyberpunk_theme.h"
+#include "famicom_theme.h"
 
 namespace {
 
 const ThemePack* const THEMES[] = {
     &classic_theme_pack(),
     &cyberpunk_theme_pack(),
+    &famicom_theme_pack(),
 };
 
 bool valid_theme_id(const char* id) {
