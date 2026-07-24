@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "animal_crossing_theme.h"
 #include "classic_theme.h"
 #include "cyberpunk_theme.h"
 #include "famicom_theme.h"
@@ -12,6 +13,7 @@ const ThemePack* const THEMES[] = {
     &classic_theme_pack(),
     &cyberpunk_theme_pack(),
     &famicom_theme_pack(),
+    &animal_crossing_theme_pack(),
 };
 
 bool valid_theme_id(const char* id) {

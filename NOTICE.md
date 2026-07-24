@@ -21,3 +21,7 @@ USB 截图能力参考了 Clawdmeter 的串口协议和 LVGL snapshot 思路：
 Cyberpunk 主题使用 Barlow Condensed Black 字体。该字体版权归 The Barlow
 Project Authors 所有，并按照 SIL Open Font License 1.1 分发；完整许可文本见
 `firmware/data/fonts/OFL-BarlowCondensed.txt`。
+
+Animal Crossing 主题使用 Fredoka SemiBold 字体的 Latin 静态子集。该字体版权归
+Fredoka Project Authors 所有，并按照 SIL Open Font License 1.1 分发；完整许可
+文本见 `firmware/data/fonts/OFL-Fredoka.txt`。

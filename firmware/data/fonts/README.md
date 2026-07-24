@@ -15,3 +15,11 @@ https://github.com/jpt/barlow
 It is used by the Cyberpunk theme for its condensed display typography and is
 distributed under the SIL Open Font License 1.1. See
 `OFL-BarlowCondensed.txt` in this directory for the complete license.
+
+`Fredoka-SemiBold-Latin.ttf` is a Latin-only static subset of Fredoka:
+
+https://github.com/google/fonts/tree/main/ofl/fredoka
+
+It is used by the Animal Crossing theme for its rounded display typography and
+is distributed under the SIL Open Font License 1.1. See `OFL-Fredoka.txt` in
+this directory for the complete license.
