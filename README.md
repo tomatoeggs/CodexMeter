@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v3.2.0`](CHANGELOG.md)。
+当前稳定版本为 [`v3.2.1`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -23,7 +23,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 | Classic 主题 | Cyberpunk 主题 | Famicom 主题 | Animal Crossing 主题 | 设备设置页 |
 | --- | --- | --- | --- | --- |
-| ![CodexMeter Classic 主题](docs/assets/token-dashboard.png) | ![CodexMeter Cyberpunk 主题](docs/verification/cyberpunk-theme-uppercase-title.png) | ![CodexMeter Famicom 主题](docs/verification/famicom-theme-final.png) | ![CodexMeter Animal Crossing 主题](docs/verification/animal-crossing-theme-final.png) | ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
+| ![CodexMeter Classic 主题](docs/assets/token-dashboard.png) | ![CodexMeter Cyberpunk 主题](docs/verification/cyberpunk-theme-uppercase-title.png) | ![CodexMeter Famicom 主题](docs/verification/famicom-theme-final.png) | ![CodexMeter Animal Crossing 主题](docs/verification/animal-crossing-theme-display-70.png) | ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
 
 ## 主要功能
 
@@ -238,7 +238,7 @@ daemon 不读取、不打印 Codex 登录 token。
 - `classic`：延续原有 CodexMeter 深色卡片布局。
 - `cyberpunk`：以高对比黄、青、红和工业信息面板构成的 Cyberpunk 2077 风格仪表盘。
 - `famicom`：以老化象牙白机身、酒红卡带区、嵌入式数据窗和十字键 / A/B 键构成的红白机硬件面板。
-- `animal_crossing`：以海岛场景、黄色帐篷、悬挂便笺、叶片额度徽章、木制路标和狸克构成的岛屿日报。
+- `animal_crossing`：以海岛场景、黄色帐篷、悬挂便笺、叶片额度徽章、木制路标和狸克构成的岛屿日报；静态场景与动态前景统一使用针对当前 AMOLED 调整的 70% 饱和度配色，同时保留未经校色的原始背景。
 
 设置页包含主题、屏幕亮度、音量、自动换肤、切换间隔和退出设置。音量值当前仅作为持久化能力预留，目标硬件尚未接入声音输出。设置页 30 秒无操作会自动退出；编辑中的未确认值会恢复。自动换肤只累计仪表盘真正可见的时间，范围为 1 分钟至 24 小时。
 

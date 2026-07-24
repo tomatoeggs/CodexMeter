@@ -36,11 +36,13 @@
 
 实现状态：已注册为设备端主题 `animal_crossing`，继续读取统一 `DashboardViewModel`，不修改 macOS 程序或 BLE 协议。复杂静态场景使用无字 RGB565 背景保留插画质感，所有业务数字、模式标题、进度、电量和状态均由 LVGL 透明实时绘制。
 
+当前 Waveshare AMOLED 实屏会放大高亮黄、草绿和湖水青的视觉饱和度，因此运行时背景采用从原始无字图确定性生成的 70% 饱和度、94% 对比度版本，动态绿色、珊瑚色、木牌棕和状态金色同步校准。未经校色的原始图保存在 [`animal-crossing-theme-clean-original.png`](assets/animal-crossing-theme-clean-original.png)，正式运行时源图保存在 [`animal-crossing-theme-clean-display-70.png`](assets/animal-crossing-theme-clean-display-70.png)，方便后续针对其他屏幕型号重新生成而不累积色彩损失。
+
 | 最终设计稿 | 480×480 真机截图 |
 | --- | --- |
-| ![Animal Crossing 最终设计稿](assets/animal-crossing-theme-final.png) | ![Animal Crossing 真机主题](verification/animal-crossing-theme-final.png) |
+| ![Animal Crossing 最终设计稿](assets/animal-crossing-theme-final.png) | ![Animal Crossing 70% 饱和度真机主题](verification/animal-crossing-theme-display-70.png) |
 
-视觉对比：[设计稿 / 真机并排图](verification/animal-crossing-design-vs-device-final.png) · [100% + 6 个任务](verification/animal-crossing-edge-100-6tasks.png) · [5h/7d 配额模式](verification/animal-crossing-quota-mode.png)
+视觉对比：[原图 / 70% 校色图](verification/animal-crossing-clean-original-vs-display-70.png) · [设计稿 / 真机并排图](verification/animal-crossing-design-vs-device-final.png) · [100% + 6 个任务](verification/animal-crossing-edge-100-6tasks.png) · [5h/7d 配额模式](verification/animal-crossing-quota-mode.png)
 
 ## 03 / 旷野之息·古代石板
 

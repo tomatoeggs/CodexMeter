@@ -28,10 +28,12 @@ constexpr int RESET_VALUE_CENTER_X = 265;
 constexpr int RESET_VALUE_SCALE_X = 265;
 constexpr int RESET_UNIT_SCALE_X = 195;
 
-const lv_color_t ISLAND_GREEN = lv_color_hex(0x075F3E);
-const lv_color_t ISLAND_GREEN_DIM = lv_color_hex(0x6FA342);
-const lv_color_t LEAF_EMPTY = lv_color_hex(0xD5E46D);
-const lv_color_t CORAL = lv_color_hex(0xE86E59);
+const lv_color_t ISLAND_GREEN = lv_color_hex(0x255444);
+const lv_color_t ISLAND_GREEN_DIM = lv_color_hex(0x7D955D);
+const lv_color_t LEAF_EMPTY = lv_color_hex(0xD1DA96);
+const lv_color_t CORAL = lv_color_hex(0xC97C70);
+const lv_color_t WOOD_BROWN = lv_color_hex(0x574232);
+const lv_color_t STATUS_GOLD = lv_color_hex(0x8D7049);
 
 struct AnimalCrossingThemeState {
   lv_obj_t* root = nullptr;
@@ -334,7 +336,7 @@ void make_reset_panel(AnimalCrossingThemeState* state) {
   state->reset_heading = make_centered_label(
       state->root, "RESET",
       font_or(state->display_font_26, &lv_font_montserrat_24),
-      lv_color_hex(0x573117), 246, 287, 70);
+      WOOD_BROWN, 246, 287, 70);
   lv_obj_set_style_transform_scale_x(
       state->reset_heading, 150, 0);
   lv_obj_set_style_transform_scale_y(
@@ -343,11 +345,11 @@ void make_reset_panel(AnimalCrossingThemeState* state) {
   state->reset_day_value = make_content_label(
       state->root, "--",
       font_or(state->display_font_36, &lv_font_montserrat_32),
-      lv_color_hex(0x573117), 0, 297);
+      WOOD_BROWN, 0, 297);
   state->reset_hour_value = make_content_label(
       state->root, "--",
       font_or(state->display_font_36, &lv_font_montserrat_32),
-      lv_color_hex(0x573117), 0, 297);
+      WOOD_BROWN, 0, 297);
   for (lv_obj_t* value :
        {state->reset_day_value, state->reset_hour_value}) {
     lv_obj_set_style_transform_pivot_x(value, 0, 0);
@@ -359,11 +361,11 @@ void make_reset_panel(AnimalCrossingThemeState* state) {
   state->reset_day_unit = make_content_label(
       state->root, "D",
       font_or(state->display_font_26, &lv_font_montserrat_24),
-      lv_color_hex(0x573117), 0, 310);
+      WOOD_BROWN, 0, 310);
   state->reset_hour_unit = make_content_label(
       state->root, "H",
       font_or(state->display_font_26, &lv_font_montserrat_24),
-      lv_color_hex(0x573117), 0, 310);
+      WOOD_BROWN, 0, 310);
   for (lv_obj_t* unit :
        {state->reset_day_unit, state->reset_hour_unit}) {
     lv_obj_set_style_transform_pivot_x(unit, 0, 0);
@@ -688,7 +690,7 @@ void update_battery(
   lv_obj_set_style_text_color(
       state->battery_value,
       charging
-          ? lv_color_hex(0xA56B16)
+          ? STATUS_GOLD
           : (percent >= 0 && percent <= 20
                  ? CORAL
                  : ISLAND_GREEN),
@@ -757,7 +759,7 @@ void update_data_state(
       data_state == DashboardDataState::Error
           ? CORAL
           : (data_state == DashboardDataState::Stale
-                 ? lv_color_hex(0xA56B16)
+                 ? STATUS_GOLD
                  : ISLAND_GREEN),
       0);
 }
