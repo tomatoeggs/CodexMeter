@@ -62,3 +62,27 @@ Regenerate the clean PNG and both RGB565 assets from the approved reference
 with:
 
 `python3 tools/generate_walle_theme_assets.py`
+
+`walle_v10_bg.rgb565` is the full-screen static scene for the `walle_v10`
+firmware theme, whose user-facing name is `WALL-E EARTH`. Its approved reference
+and clean runtime source are:
+
+`docs/assets/walle-theme-v10.png`
+
+`docs/assets/walle-theme-v10-clean.png`
+
+The clean scene retains the sunset city, WALL-E illustration, sprout boot,
+mechanical panels, cassette and tread texture. LVGL draws all changing headings,
+values, battery text, reset countdown and task count above it.
+
+`walle_v10_leaves_active.rgb565` and
+`walle_v10_leaves_inactive.rgb565` contain palette-matched variants of the ten
+quota leaves. `walle_v10_leaves_mask.bin` identifies each leaf independently so
+the firmware can render 90%–99% as nine active leaves and one inactive leaf,
+while reserving ten active leaves for 100%. The generator normalizes both states
+across all slots so leaves extracted from the inactive part of the reference do
+not appear falsely disabled after activation.
+
+Regenerate the WALL-E EARTH clean PNG and runtime assets with:
+
+`python3 tools/generate_walle_v10_theme_assets.py`

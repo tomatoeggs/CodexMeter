@@ -41,3 +41,11 @@ It is used by the Gundam and WALL-E themes for their squared numeric readouts;
 D-DIN provides the compact instrument labels. Teko is distributed under the
 SIL Open Font License 1.1. See `OFL-Teko.txt` in this directory for the complete
 license.
+
+`Jersey10-Regular.ttf` comes from the Jersey 10 family in Google Fonts:
+
+https://github.com/google/fonts/tree/main/ofl/jersey10
+
+It is used by the WALL-E EARTH dashboard to reproduce the approved pixel-display
+letterforms. The font is distributed under the SIL Open Font License 1.1. See
+`OFL-Jersey10.txt` in this directory for the complete license.

@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v3.4.1`](CHANGELOG.md)。
+当前稳定版本为 [`v3.5.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -25,16 +25,16 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 | --- | --- | --- | --- |
 | ![CodexMeter Classic 主题](docs/assets/token-dashboard.png) | ![CodexMeter Cyberpunk 主题](docs/verification/cyberpunk-theme-uppercase-title.png) | ![CodexMeter Famicom 主题](docs/verification/famicom-theme-final.png) | ![CodexMeter Animal Crossing 主题](docs/verification/animal-crossing-theme-display-70.png) |
 
-| Gundam 主题 | WALL-E 主题 | 设备设置页 |
-| --- | --- | --- |
-| ![CodexMeter Gundam 主题](docs/verification/gundam-theme-final.png) | ![CodexMeter WALL-E 主题](docs/verification/walle-theme-final.png) | ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
+| Gundam 主题 | WALL-E 主题 | WALL-E EARTH 主题 | 设备设置页 |
+| --- | --- | --- | --- |
+| ![CodexMeter Gundam 主题](docs/verification/gundam-theme-final.png) | ![CodexMeter WALL-E 主题](docs/verification/walle-theme-final.png) | ![CodexMeter WALL-E EARTH 主题](docs/verification/walle-v10-secondary-center-x399.png) | ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
 
 ## 主要功能
 
 - macOS 后台 daemon 定时读取 Codex 订阅剩余用量和每日 Token 活动。
 - 通过 BLE 蓝牙把用量和提醒发送到 Waveshare ESP32-S3-Touch-AMOLED-2.16。
 - 支持一台 Mac 同时驱动多台已登记的 CodexMeter；设备按稳定短 ID 自动发现和重连。
-- ESP32 端内置 `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam` 与 `WALL-E` 主题；主题拥有独立布局和动画，并共享同一份只读仪表盘数据。
+- ESP32 端内置 `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、`WALL-E` 与 `WALL-E EARTH` 七套主题；主题拥有独立布局和动画，并共享同一份只读仪表盘数据。
 - 中间键短按进入设备设置页，可调整主题、亮度、自动换肤开关与切换间隔；中间键长按切换亮屏/关屏。
 - 支持按 1–1440 分钟的有效展示时间自动轮换主题；关屏、设置页、任务提醒和系统浮层期间暂停计时。
 - Codex 返回 5h 窗口时保持原有的 5h/7d 余量主页；只返回 7d 窗口时自动切换为今日/近7天 Token 活动与 7d 余量主页。
@@ -107,7 +107,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 - `hooks/codexmeter_stop_hook.py`：Codex `Stop` hook，用于标记任务结束并触发完成提醒。
 - `firmware/`：ESP32 固件，使用 PlatformIO、Arduino、LVGL、Arduino_GFX、ArduinoJson 和 NimBLE。
 - `firmware/src/theme*.{h,cpp}`：主题契约、注册表、运行时与自动轮换策略。
-- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `walle_theme.*`：当前内置的六套仪表盘主题。
+- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `walle_theme.*` / `walle_v10_theme.*`：当前内置的七套仪表盘主题。
 - `firmware/src/device_settings.*`：带版本与 CRC 校验的设备端 NVS 设置。
 - `scripts/`：安装 hook 的辅助脚本。
 - `tools/capture_screenshot.py`：USB 串口截图采集工具，将 RGB565 帧缓冲转换为 PNG。
@@ -225,8 +225,8 @@ daemon 不读取、不打印 Codex 登录 token。
 
 两种布局共同包含：
 
-- 当前主题自行决定标识、电量、Token、额度、重置窗口和任务指示的具体排版；六套内置主题使用完全独立的 LVGL 结构。
-- 运行中任务由主题自行表达：Cyberpunk 最多显示 6 个状态菱形，Gundam 最多显示 7 颗状态灯，Famicom、Animal Crossing 与 WALL-E 使用数字计数；没有运行中任务时显示空闲状态。
+- 当前主题自行决定标识、电量、Token、额度、重置窗口和任务指示的具体排版；七套内置主题使用完全独立的 LVGL 结构。
+- 运行中任务由主题自行表达：Cyberpunk 最多显示 6 个状态菱形，Gundam 最多显示 7 颗状态灯，Famicom、Animal Crossing、WALL-E 与 WALL-E EARTH 使用数字计数；没有运行中任务时显示空闲状态。
 - 仪表盘中左/右按键短按分别降低/增加亮度；亮度范围为 10%-100%，每次调整 10%，调整后显示 3 秒亮度进度条。
 - 中间键短按进入设置页，长按切换 AMOLED 亮屏和关闭；屏幕关闭时 BLE、任务计数、日志和用量刷新仍会继续运行。
 - Mac 锁屏持续 5 分钟后，daemon 会发送关屏控制；Mac 解锁后会立即发送亮屏控制。
@@ -245,6 +245,8 @@ daemon 不读取、不打印 Codex 登录 token。
 - `famicom`：以老化象牙白机身、酒红卡带区、嵌入式数据窗和十字键 / A/B 键构成的红白机硬件面板。
 - `animal_crossing`：以海岛场景、黄色帐篷、悬挂便笺、叶片额度徽章、木制路标和狸克构成的岛屿日报；静态场景与动态前景统一使用针对当前 AMOLED 调整的 70% 饱和度配色，同时保留未经校色的原始背景。
 - `gundam`：以白色基地机库监视器、RX-78-2 赛璐璐半身、复古军用遥测网格和机体状态灯构成的移动战士诊断终端。
+- `walle`：以黄黑工程机器人仪表、双目镜头、警示带、磁带计时器和履带状态区构成的 WALL-E 机械终端。
+- `walle_v10`（显示名 `WALL-E EARTH`）：以夕阳废土城市、幼苗靴、WALL-E 主体、十枚额度叶和像素显示器构成的地球复育终端。
 
 设置页包含主题、屏幕亮度、音量、自动换肤、切换间隔和退出设置。音量值当前仅作为持久化能力预留，目标硬件尚未接入声音输出。设置页 30 秒无操作会自动退出；编辑中的未确认值会恢复。自动换肤只累计仪表盘真正可见的时间，范围为 1 分钟至 24 小时。
 
