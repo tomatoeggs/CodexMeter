@@ -1,0 +1,23 @@
+firmware/src/theme_registry.cpp
+  s_3a5abf14394f82::t_9c12797f3fcda2 11,22
+firmware/src/walle_v10_theme.h
+  s_3a5abf14394f82::t_f268082eaa5d04 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8775d14d7bc0399333a2647ff5d63dfce8851a41",
+  "prompts": {},
+  "sessions": {
+    "s_3a5abf14394f82": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f94ad-fa09-7ef2-973b-ce47e68050b4",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
