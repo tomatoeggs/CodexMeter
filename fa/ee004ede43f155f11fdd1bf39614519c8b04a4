@@ -1,0 +1,27 @@
+CHANGELOG.md
+  s_ca0ffbe9daa070::t_2f182273a4e4f0 5-10
+README.md
+  s_ca0ffbe9daa070::t_29cdedae21cec1 12
+codexmeter/__init__.py
+  s_ca0ffbe9daa070::t_e93b73790cf3b7 5
+firmware/src/gundam_theme.cpp
+  s_ca0ffbe9daa070::t_ff1233af250c1d 26,231-254,425-427,515,524-525,532-533,542-543,555-556,621-630,645
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "faee004ede43f155f11fdd1bf39614519c8b04a4",
+  "prompts": {},
+  "sessions": {
+    "s_ca0ffbe9daa070": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f948b-6476-7e02-bc20-97aa3683f1fb",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
