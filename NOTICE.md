@@ -25,3 +25,9 @@ Project Authors 所有，并按照 SIL Open Font License 1.1 分发；完整许�
 Animal Crossing 主题使用 Fredoka SemiBold 字体的 Latin 静态子集。该字体版权归
 Fredoka Project Authors 所有，并按照 SIL Open Font License 1.1 分发；完整许可
 文本见 `firmware/data/fonts/OFL-Fredoka.txt`。
+
+Gundam 主题使用 D-DIN Condensed Bold 与 Teko SemiBold 字体。D-DIN 版权归
+Datto Inc. 所有，Teko 版权归 The Teko Project Authors 所有；两者均按照 SIL
+Open Font License 1.1 分发，完整许可文本分别见
+`firmware/data/fonts/OFL-D-DIN-1.1.txt` 与
+`firmware/data/fonts/OFL-Teko.txt`。

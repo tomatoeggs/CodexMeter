@@ -28,7 +28,7 @@
 - `firmware/src/model.*`：负责解析 BLE JSON 为固件内部模型，并记录 `usage` payload 接收时的 `millis()`，用于后续倒计时计算。
 - `firmware/src/dashboard_view_model.*`：把用量、电量、任务活动和连接状态转换为主题只读的统一仪表盘模型与格式化文本。
 - `firmware/src/theme.h` / `theme_registry.*` / `theme_runtime.*`：定义主题契约、编译期注册表，以及当前主题的挂载、更新、动画 tick、卸载和安全回退生命周期。
-- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*`：当前内置的四套独立 LVGL 仪表盘实现。
+- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*`：当前内置的五套独立 LVGL 仪表盘实现。
 - `firmware/src/theme_rotation.*`：只在仪表盘真实可见时累计的自动换肤策略。
 - `firmware/src/device_settings.*`：保存主题、亮度、预留音量和自动换肤配置；使用带版本和 CRC 的 NVS 记录以及延迟写入。
 - `firmware/src/ui.*`：负责主题运行时、设置页、系统浮层、防烧屏漂移、红黄绿闪屏和任务完成视图之间的场景协调。

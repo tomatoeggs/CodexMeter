@@ -7,7 +7,7 @@
 已经实现：
 
 - `DashboardViewModel`、`ThemePack`、主题注册表与单主题运行时生命周期。
-- `Classic`、`Cyberpunk`、`Famicom` 和 `Animal Crossing` 四套独立仪表盘。
+- `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing` 和 `Gundam` 五套独立仪表盘。
 - 设备本地设置页、中键短按/长按语义、自动换肤和 NVS 持久化。
 - 设置、提醒、关屏与系统浮层期间暂停自动轮换。
 - Startup / Completion 的强类型接口预留。
@@ -41,7 +41,7 @@
 
 ## 2. 当前结构的约束
 
-v3.0 已把原先的固定 UI 拆为主题无关的 ViewModel、运行时和 `classic` 主题，并以 `cyberpunk` 验证主题可以拥有完全不同的对象树、排版和动画；v3.1 新增的 `famicom` 进一步验证了同一接口可以承载差异显著的硬件拟物布局；v3.2 新增的 `animal_crossing` 使用静态插画背景与动态 LVGL 覆盖层组合，验证同一接口也能承载高细节场景化主题。`ui.cpp` 只协调场景与系统浮层，不再通过主题分支维护多套控件。
+v3.0 已把原先的固定 UI 拆为主题无关的 ViewModel、运行时和 `classic` 主题，并以 `cyberpunk` 验证主题可以拥有完全不同的对象树、排版和动画；v3.1 新增的 `famicom` 进一步验证了同一接口可以承载差异显著的硬件拟物布局；v3.2 新增的 `animal_crossing` 使用静态插画背景与动态 LVGL 覆盖层组合，验证同一接口也能承载高细节场景化主题；v3.3 新增的 `gundam` 继续复用这条静态插画与动态数据分层路径，把高达半身、白色基地终端纹理留在 RGB565 背景中，全部业务数字和状态由 LVGL 实时绘制。`ui.cpp` 只协调场景与系统浮层，不再通过主题分支维护多套控件。
 
 当前仍有两项刻意保留在系统层：
 
@@ -66,6 +66,7 @@ firmware/src/
 ├── cyberpunk_theme.h/.cpp       # Cyberpunk 独立仪表盘
 ├── famicom_theme.h/.cpp         # 红白机硬件面板仪表盘
 ├── animal_crossing_theme.h/.cpp # 动森岛屿场景仪表盘
+├── gundam_theme.h/.cpp          # 白色基地机体诊断仪表盘
 ├── ui.h/.cpp                    # 场景、浮层与设置页协调器
 ├── power.h/.cpp                 # 中键短按 / 长按语义事件
 └── main.cpp                     # 板级初始化与主循环调度
@@ -386,7 +387,7 @@ struct DeviceSettings {
 - Python 宿主回归测试，确认既有 daemon 与 BLE 数据模型未受主题改动影响。
 - `waveshare_amoled_216` 固件完整编译与烧录。
 - 串口验证主题选择、自动轮换设置、NVS 状态、按键语义和设备日志。
-- 实屏验证 Classic、设置页、Cyberpunk、Famicom 与 Animal Crossing；差异化主题额外覆盖 100%、非 100%、6 个活动任务、电池与文本对齐。
+- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing 与 Gundam；差异化主题额外覆盖 100%、非 100%、6/7 个活动任务、电池与文本对齐。
 - USB 截图验证 480×480 物理输出。
 
 后续新增主题时至少覆盖：
@@ -394,7 +395,7 @@ struct DeviceSettings {
 - 5h + 7d 配额模式和今日 / 7 天 Token 模式。
 - waiting / stale / 缺失字段。
 - 电量低、中、高和充电。
-- 0、1、2、6 个活动任务。
+- 0、1、2、6 个活动任务，以及主题可视指示器的上限与溢出状态。
 - 系统 Completion 与主题切换 pending 回退。
 - 0° / 90° / 180° / 270° 截图。
 

@@ -23,3 +23,21 @@ https://github.com/google/fonts/tree/main/ofl/fredoka
 It is used by the Animal Crossing theme for its rounded display typography and
 is distributed under the SIL Open Font License 1.1. See `OFL-Fredoka.txt` in
 this directory for the complete license.
+
+`D-DINCondensed-Bold.ttf` comes from Datto's open-source D-DIN family:
+
+https://github.com/amcchord/datto-d-din
+
+It is used by the Gundam theme for its condensed industrial instrument
+typography and is distributed under the SIL Open Font License 1.1. See
+`OFL-D-DIN-1.1.txt` in this directory for the complete license.
+
+`Teko-SemiBold.ttf` is a static 600-weight instance generated from the official
+Teko variable font distributed by Google Fonts:
+
+https://github.com/google/fonts/tree/main/ofl/teko
+
+It is used by the Gundam theme for the squared, cockpit-style numeric readouts
+while D-DIN remains responsible for labels and status text. Teko is distributed
+under the SIL Open Font License 1.1. See `OFL-Teko.txt` in this directory for
+the complete license.
