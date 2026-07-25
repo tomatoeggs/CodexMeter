@@ -1,0 +1,31 @@
+docs/architecture.md
+  s_ca0ffbe9daa070::t_dd92b73b3a2644 31
+firmware/data/fonts/README.md
+  s_ca0ffbe9daa070::t_57b2683be43412 26-43
+firmware/data/themes/README.md
+  s_ca0ffbe9daa070::t_38266833c7d9e7 26-44
+firmware/src/gundam_theme.cpp
+  s_ca0ffbe9daa070::t_00a06a87c1a029 1-1062
+firmware/src/gundam_theme.h
+  s_ca0ffbe9daa070::t_3363154b3cd6f1 1-5
+firmware/src/theme_registry.cpp
+  s_ca0ffbe9daa070::t_7574f71667f418 9,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "13f49600fefd95fefa4012c0dc908badae12153b",
+  "prompts": {},
+  "sessions": {
+    "s_ca0ffbe9daa070": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f948b-6476-7e02-bc20-97aa3683f1fb",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
