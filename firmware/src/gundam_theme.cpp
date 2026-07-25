@@ -23,6 +23,7 @@ constexpr int PRIMARY_LEFT_X = 30;
 constexpr int SECONDARY_LEFT_X = 30;
 constexpr int QUOTA_LEFT_X = 30;
 constexpr int RESET_CENTER_X = 395;
+constexpr int STATUS_Y_OFFSET = 2;
 
 const lv_color_t IVORY = lv_color_hex(0xE2CEAD);
 const lv_color_t STEEL = lv_color_hex(0x778391);
@@ -227,6 +228,30 @@ void split_suffix(
   }
 }
 
+void format_gundam_week_tokens(
+    char* output, size_t size,
+    const DashboardViewModel& model) {
+  constexpr uint64_t ONE_BILLION = 1000000000ULL;
+  constexpr uint64_t ONE_TRILLION = 1000000000000ULL;
+  constexpr uint64_t TOKENS_PER_HUNDREDTH_BILLION = 10000000ULL;
+
+  if (!model.has_last_7d_tokens ||
+      model.last_7d_tokens < ONE_BILLION ||
+      model.last_7d_tokens >= ONE_TRILLION) {
+    strlcpy(output, model.last_7d_tokens_text, size);
+    return;
+  }
+
+  uint64_t hundredths =
+      (model.last_7d_tokens +
+       TOKENS_PER_HUNDREDTH_BILLION / 2ULL) /
+      TOKENS_PER_HUNDREDTH_BILLION;
+  snprintf(
+      output, size, "%llu.%02lluB",
+      static_cast<unsigned long long>(hundredths / 100ULL),
+      static_cast<unsigned long long>(hundredths % 100ULL));
+}
+
 bool load_background(GundamThemeState* state) {
   state->background_pixels = static_cast<uint8_t*>(
       heap_caps_malloc(
@@ -397,7 +422,9 @@ void make_secondary(GundamThemeState* state) {
   state->secondary_unit = make_content_label(
       state->root, "",
       font_or(state->display_font_36, &lv_font_montserrat_32),
-      IVORY, 0, 267);
+      IVORY, 0, 266);
+  lv_obj_set_style_transform_scale_y(
+      state->secondary_unit, 280, 0);
   set_instrument_outline(state->secondary_value);
   set_instrument_outline(state->secondary_unit);
 }
@@ -485,7 +512,7 @@ void make_status(GundamThemeState* state) {
   state->task_value = make_content_label(
       state->root, "IDLE",
       font_or(state->display_font_20, &lv_font_montserrat_16),
-      IVORY, 30, 429);
+      IVORY, 30, 429 + STATUS_Y_OFFSET);
   set_left_transform_origin(state->task_value);
   lv_obj_set_style_transform_scale_y(
       state->task_value, 270, 0);
@@ -494,14 +521,16 @@ void make_status(GundamThemeState* state) {
   for (int i = 0; i < TASK_LAMP_COUNT; ++i) {
     int center_x = 125 + i * 28;
     state->task_lamps[i] = make_rect(
-        state->root, center_x - 9, 428, 19, 19,
+        state->root, center_x - 9,
+        428 + STATUS_Y_OFFSET, 19, 19,
         PANEL_DARK, LV_RADIUS_CIRCLE);
     lv_obj_set_style_border_width(
         state->task_lamps[i], 1, 0);
     lv_obj_set_style_border_color(
         state->task_lamps[i], CELL_BORDER, 0);
     state->task_lamp_cores[i] = make_rect(
-        state->root, center_x - 6, 431, 13, 13,
+        state->root, center_x - 6,
+        431 + STATUS_Y_OFFSET, 13, 13,
         SENSOR_GREEN_BRIGHT, LV_RADIUS_CIRCLE);
     lv_obj_add_flag(
         state->task_lamp_cores[i], LV_OBJ_FLAG_HIDDEN);
@@ -510,7 +539,8 @@ void make_status(GundamThemeState* state) {
   state->ble_value = make_label(
       state->root, "BLE",
       font_or(state->display_font_20, &lv_font_montserrat_16),
-      IVORY, 322, 429, 61, LV_TEXT_ALIGN_CENTER);
+      IVORY, 322, 429 + STATUS_Y_OFFSET,
+      61, LV_TEXT_ALIGN_CENTER);
   lv_obj_set_style_transform_pivot_x(
       state->ble_value, 30, 0);
   lv_obj_set_style_transform_scale_x(
@@ -522,7 +552,8 @@ void make_status(GundamThemeState* state) {
   state->sync_value = make_label(
       state->root, "WAIT",
       font_or(state->display_font_20, &lv_font_montserrat_16),
-      STEEL, 392, 429, 66, LV_TEXT_ALIGN_CENTER);
+      STEEL, 392, 429 + STATUS_Y_OFFSET,
+      66, LV_TEXT_ALIGN_CENTER);
   lv_obj_set_style_transform_pivot_x(
       state->sync_value, 33, 0);
   lv_obj_set_style_transform_scale_x(
@@ -587,10 +618,16 @@ void update_primary(
 void update_secondary(
     GundamThemeState* state,
     const DashboardViewModel& model) {
-  const char* source =
-      model.token_usage_mode
-          ? model.last_7d_tokens_text
-          : model.d7_percent_text;
+  char token_source[24];
+  if (model.token_usage_mode) {
+    format_gundam_week_tokens(
+        token_source, sizeof(token_source), model);
+  } else {
+    strlcpy(
+        token_source, model.d7_percent_text,
+        sizeof(token_source));
+  }
+  const char* source = token_source;
   set_label_text_if_changed(
       state->secondary_heading,
       model.token_usage_mode
@@ -605,7 +642,7 @@ void update_secondary(
   set_label_text_if_changed(state->secondary_value, value);
   set_label_text_if_changed(state->secondary_unit, unit);
   int value_scale = scale_for_value(strlen(source), false);
-  int unit_scale = 180;
+  int unit_scale = 205;
   lv_obj_set_style_transform_scale_x(
       state->secondary_value, value_scale, 0);
   lv_obj_set_style_transform_scale_x(
