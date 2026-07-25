@@ -1,0 +1,21 @@
+firmware/src/gundam_theme.cpp
+  s_ca0ffbe9daa070::t_e5cb7dcd919e2d 174-199,430-432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "da5ea044be5388ea2eefc72b2c05f1d6b6878276",
+  "prompts": {},
+  "sessions": {
+    "s_ca0ffbe9daa070": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f948b-6476-7e02-bc20-97aa3683f1fb",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
