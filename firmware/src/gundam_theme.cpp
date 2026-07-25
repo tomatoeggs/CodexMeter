@@ -171,6 +171,32 @@ int scaled_label_width(lv_obj_t* label, int scale_x) {
   return (lv_obj_get_width(label) * scale_x + 128) / 256;
 }
 
+int scaled_label_baseline_offset(
+    lv_obj_t* label, int scale_y) {
+  const lv_font_t* font =
+      lv_obj_get_style_text_font(label, LV_PART_MAIN);
+  int baseline_offset =
+      font->line_height - font->base_line;
+  return (baseline_offset * scale_y + 128) / 256;
+}
+
+void align_scaled_label_baselines(
+    lv_obj_t* reference, int reference_scale_y,
+    lv_obj_t* target, int target_scale_y) {
+  lv_obj_set_style_transform_pivot_y(reference, 0, 0);
+  lv_obj_set_style_transform_pivot_y(target, 0, 0);
+  lv_obj_update_layout(reference);
+  int baseline_y =
+      lv_obj_get_y(reference) +
+      scaled_label_baseline_offset(
+          reference, reference_scale_y);
+  lv_obj_set_y(
+      target,
+      baseline_y -
+          scaled_label_baseline_offset(
+              target, target_scale_y));
+}
+
 void position_value_group(
     lv_obj_t* value, int value_scale_x,
     lv_obj_t* unit, int unit_scale_x,
@@ -401,6 +427,9 @@ void make_secondary(GundamThemeState* state) {
       IVORY, 0, 266);
   lv_obj_set_style_transform_scale_y(
       state->secondary_unit, 280, 0);
+  align_scaled_label_baselines(
+      state->secondary_value, 274,
+      state->secondary_unit, 280);
   set_instrument_outline(state->secondary_value);
   set_instrument_outline(state->secondary_unit);
 }
