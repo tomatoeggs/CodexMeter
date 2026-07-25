@@ -7,7 +7,8 @@
 已经实现：
 
 - `DashboardViewModel`、`ThemePack`、主题注册表与单主题运行时生命周期。
-- `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing` 和 `Gundam` 五套独立仪表盘。
+- `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam` 和
+  `WALL-E` 六套独立仪表盘。
 - 设备本地设置页、中键短按/长按语义、自动换肤和 NVS 持久化。
 - 设置、提醒、关屏与系统浮层期间暂停自动轮换。
 - Startup / Completion 的强类型接口预留。
@@ -387,7 +388,7 @@ struct DeviceSettings {
 - Python 宿主回归测试，确认既有 daemon 与 BLE 数据模型未受主题改动影响。
 - `waveshare_amoled_216` 固件完整编译与烧录。
 - 串口验证主题选择、自动轮换设置、NVS 状态、按键语义和设备日志。
-- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing 与 Gundam；差异化主题额外覆盖 100%、非 100%、6/7 个活动任务、电池与文本对齐。
+- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing、Gundam 与 WALL-E；差异化主题额外覆盖 100%、非 100%、6/7 个活动任务、电池与文本对齐。
 - USB 截图验证 480×480 物理输出。
 
 后续新增主题时至少覆盖：

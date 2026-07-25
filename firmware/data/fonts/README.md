@@ -10,7 +10,7 @@ of receiving pre-rendered images over BLE.
 
 `BarlowCondensed-Black.ttf` comes from the Barlow project:
 
-https://github.com/jpt/barlow
+https://github.com/google/fonts/tree/main/ofl/barlowcondensed
 
 It is used by the Cyberpunk theme for its condensed display typography and is
 distributed under the SIL Open Font License 1.1. See
@@ -37,7 +37,7 @@ Teko variable font distributed by Google Fonts:
 
 https://github.com/google/fonts/tree/main/ofl/teko
 
-It is used by the Gundam theme for the squared, cockpit-style numeric readouts
-while D-DIN remains responsible for labels and status text. Teko is distributed
-under the SIL Open Font License 1.1. See `OFL-Teko.txt` in this directory for
-the complete license.
+It is used by the Gundam and WALL-E themes for their squared numeric readouts;
+D-DIN provides the compact instrument labels. Teko is distributed under the
+SIL Open Font License 1.1. See `OFL-Teko.txt` in this directory for the complete
+license.

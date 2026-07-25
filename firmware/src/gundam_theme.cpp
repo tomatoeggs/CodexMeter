@@ -228,30 +228,6 @@ void split_suffix(
   }
 }
 
-void format_gundam_week_tokens(
-    char* output, size_t size,
-    const DashboardViewModel& model) {
-  constexpr uint64_t ONE_BILLION = 1000000000ULL;
-  constexpr uint64_t ONE_TRILLION = 1000000000000ULL;
-  constexpr uint64_t TOKENS_PER_HUNDREDTH_BILLION = 10000000ULL;
-
-  if (!model.has_last_7d_tokens ||
-      model.last_7d_tokens < ONE_BILLION ||
-      model.last_7d_tokens >= ONE_TRILLION) {
-    strlcpy(output, model.last_7d_tokens_text, size);
-    return;
-  }
-
-  uint64_t hundredths =
-      (model.last_7d_tokens +
-       TOKENS_PER_HUNDREDTH_BILLION / 2ULL) /
-      TOKENS_PER_HUNDREDTH_BILLION;
-  snprintf(
-      output, size, "%llu.%02lluB",
-      static_cast<unsigned long long>(hundredths / 100ULL),
-      static_cast<unsigned long long>(hundredths % 100ULL));
-}
-
 bool load_background(GundamThemeState* state) {
   state->background_pixels = static_cast<uint8_t*>(
       heap_caps_malloc(
@@ -620,8 +596,9 @@ void update_secondary(
     const DashboardViewModel& model) {
   char token_source[24];
   if (model.token_usage_mode) {
-    format_gundam_week_tokens(
-        token_source, sizeof(token_source), model);
+    strlcpy(
+        token_source, model.last_7d_tokens_text,
+        sizeof(token_source));
   } else {
     strlcpy(
         token_source, model.d7_percent_text,

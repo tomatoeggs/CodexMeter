@@ -69,7 +69,8 @@ void format_d7_reset(
 }
 
 void format_compact_tokens(
-    char* output, size_t size, bool valid, uint64_t tokens) {
+    char* output, size_t size, bool valid, uint64_t tokens,
+    bool two_decimal_large_units = false) {
   if (!valid) {
     strlcpy(output, "--", size);
     return;
@@ -77,13 +78,33 @@ void format_compact_tokens(
 
   static const char* UNITS[] = {"", "K", "M", "B", "T"};
   double scaled = static_cast<double>(tokens);
+  uint64_t unit_size = 1;
   int unit = 0;
   while (scaled >= 1000.0 && unit < 4) {
     scaled /= 1000.0;
+    unit_size *= 1000ULL;
     unit++;
   }
 
-  if (unit == 0) {
+  if (two_decimal_large_units && unit >= 3) {
+    uint64_t tokens_per_hundredth = unit_size / 100ULL;
+    uint64_t hundredths =
+        (tokens + tokens_per_hundredth / 2ULL) /
+        tokens_per_hundredth;
+    if (hundredths >= 100000ULL && unit < 4) {
+      unit++;
+      unit_size *= 1000ULL;
+      tokens_per_hundredth = unit_size / 100ULL;
+      hundredths =
+          (tokens + tokens_per_hundredth / 2ULL) /
+          tokens_per_hundredth;
+    }
+    snprintf(
+        output, size, "%llu.%02llu%s",
+        static_cast<unsigned long long>(hundredths / 100ULL),
+        static_cast<unsigned long long>(hundredths % 100ULL),
+        UNITS[unit]);
+  } else if (unit == 0) {
     snprintf(
         output, size, "%llu",
         static_cast<unsigned long long>(tokens));
@@ -162,6 +183,6 @@ DashboardViewModel build_dashboard_view_model(
   format_compact_tokens(
       model.last_7d_tokens_text,
       sizeof(model.last_7d_tokens_text),
-      model.has_last_7d_tokens, model.last_7d_tokens);
+      model.has_last_7d_tokens, model.last_7d_tokens, true);
   return model;
 }

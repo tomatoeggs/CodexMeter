@@ -7,6 +7,7 @@
 #include "cyberpunk_theme.h"
 #include "famicom_theme.h"
 #include "gundam_theme.h"
+#include "walle_theme.h"
 
 namespace {
 
@@ -16,6 +17,7 @@ const ThemePack* const THEMES[] = {
     &famicom_theme_pack(),
     &animal_crossing_theme_pack(),
     &gundam_theme_pack(),
+    &walle_theme_pack(),
 };
 
 bool valid_theme_id(const char* id) {

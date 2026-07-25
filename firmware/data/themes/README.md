@@ -42,3 +42,23 @@ the RX-78-2 illustration, White Base identity, panel frames and background
 texture. `gundam_bg.rgb565` is its direct little-endian RGB565 conversion.
 LVGL draws all live headings, values, quota cells, battery, reset countdown,
 task lamps and synchronization state above it.
+
+`walle_bg.rgb565` is the 480×480 static mechanical layer for the `walle`
+theme. Its clean source is:
+
+`docs/assets/walle-theme-v9-clean.png`
+
+It is derived deterministically from the approved V9 reference by clearing only
+runtime-changing values, mode headings, task count and status lamps. The eye
+housings, gradients, hazard stripe, quota arch, cassette, tread details, sprout
+and all static labels retain the reference pixels.
+
+`walle_leaves_active.rgb565` and `walle_leaves_mask.bin` preserve the exact nine
+leaf silhouettes from the reference. The firmware recolors those pixels in the
+loaded background according to the live seven-day remaining percentage; other
+dashboard values remain LVGL overlays.
+
+Regenerate the clean PNG and both RGB565 assets from the approved reference
+with:
+
+`python3 tools/generate_walle_theme_assets.py`
