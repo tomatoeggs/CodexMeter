@@ -1,0 +1,33 @@
+firmware/data/themes/README.md
+  s_3a5abf14394f82::t_91ee0dd786f79c 45-64
+firmware/src/dashboard_view_model.cpp
+  s_3a5abf14394f82::t_d05b27b97d9d82 72-73,81,85,89-107,186
+firmware/src/gundam_theme.cpp
+  s_3a5abf14394f82::t_b91690936822b5 599-601
+firmware/src/theme_registry.cpp
+  s_3a5abf14394f82::t_d4e4342f7c4326 10,20
+firmware/src/walle_theme.cpp
+  s_3a5abf14394f82::t_6b25793823b6f8 1-1112
+firmware/src/walle_theme.h
+  s_3a5abf14394f82::t_de311491340d42 1-5
+tools/generate_walle_theme_assets.py
+  s_3a5abf14394f82::t_00edde67567a91 1-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "505a841e8c4a18be15c11ecb7546311b90f84092",
+  "prompts": {},
+  "sessions": {
+    "s_3a5abf14394f82": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f94ad-fa09-7ef2-973b-ce47e68050b4",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
