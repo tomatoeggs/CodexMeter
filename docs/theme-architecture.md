@@ -8,7 +8,7 @@
 
 - `DashboardViewModel`、`ThemePack`、主题注册表与单主题运行时生命周期。
 - `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、
-  `WALL-E` 和 `WALL-E EARTH` 七套独立仪表盘。
+  `WALL-E`、`WALL-E EARTH` 和 `WALL-E BLUEPRINT` 八套独立仪表盘。
 - 设备本地设置页、中键短按/长按语义、自动换肤和 NVS 持久化。
 - 设置、提醒、关屏与系统浮层期间暂停自动轮换。
 - Startup / Completion 的强类型接口预留。
@@ -68,6 +68,9 @@ firmware/src/
 ├── famicom_theme.h/.cpp         # 红白机硬件面板仪表盘
 ├── animal_crossing_theme.h/.cpp # 动森岛屿场景仪表盘
 ├── gundam_theme.h/.cpp          # 白色基地机体诊断仪表盘
+├── walle_theme.h/.cpp           # 黄黑 WALL-E 工程终端
+├── walle_v10_theme.h/.cpp       # WALL-E EARTH 地球复育终端
+├── walle_blueprint_theme.h/.cpp # WALL-E 工程蓝图终端
 ├── ui.h/.cpp                    # 场景、浮层与设置页协调器
 ├── power.h/.cpp                 # 中键短按 / 长按语义事件
 └── main.cpp                     # 板级初始化与主循环调度
@@ -345,7 +348,7 @@ struct DeviceSettings {
 - 多主题会显著增加固件和运行时资源压力。
 - 动态数值和动画仍需要额外图层。
 
-对于包含大量不可动插画细节、且逐个使用 LVGL 图元会明显损失还原度的主题，可以有条件使用“无字静态 RGB565 场景 + 透明动态 LVGL 覆盖层”。`Animal Crossing` 与 `WALL-E EARTH` 即采用这一方式：背景从 LittleFS 加载到 PSRAM，数值、标题、进度、电量和设备状态均是独立的透明实时对象；主题卸载时释放图片、字体和全部对象。Animal Crossing 针对当前 AMOLED 使用 70% 饱和度、94% 对比度的预校色背景；WALL-E EARTH 保留设计稿像素纹理，并以独立亮态、灰态和掩码资源更新十枚额度叶。未经校色的原始背景和带示例数据的设计参考均独立保留，后续适配其他面板时必须从原始参考重新生成，不能在运行时资源上重复处理。此类主题必须在注册前确认 LittleFS 容量、PSRAM 分配失败回退和反复切换后的内存稳定性。
+对于包含大量不可动插画细节、且逐个使用 LVGL 图元会明显损失还原度的主题，可以有条件使用“无字静态 RGB565 场景 + 透明动态 LVGL 覆盖层”。`Animal Crossing`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 即采用这一方式：背景从 LittleFS 加载到 PSRAM，数值、标题、进度、电量和设备状态均是独立的透明实时对象；主题卸载时释放图片、字体和全部对象。Animal Crossing 针对当前 AMOLED 使用 70% 饱和度、94% 对比度的预校色背景；WALL-E EARTH 保留设计稿像素纹理，并以独立亮态、灰态和掩码资源更新十枚额度叶；WALL-E BLUEPRINT 保留工程线稿，并以独立亮态、暗态和格位掩码更新十格额度条与七格电池。未经校色的原始背景和带示例数据的设计参考均独立保留，后续适配其他面板时必须从原始参考重新生成，不能在运行时资源上重复处理。此类主题必须在注册前确认 LittleFS 容量、PSRAM 分配失败回退和反复切换后的内存稳定性。
 
 推荐：
 
@@ -388,7 +391,7 @@ struct DeviceSettings {
 - Python 宿主回归测试，确认既有 daemon 与 BLE 数据模型未受主题改动影响。
 - `waveshare_amoled_216` 固件完整编译与烧录。
 - 串口验证主题选择、自动轮换设置、NVS 状态、按键语义和设备日志。
-- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing、Gundam、WALL-E 与 WALL-E EARTH；差异化主题额外覆盖 100%、非 100%、6/7 个活动任务、电池与文本对齐。
+- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing、Gundam、WALL-E、WALL-E EARTH 与 WALL-E BLUEPRINT；差异化主题额外覆盖 100%、非 100%、6/7 个活动任务、电池与文本对齐。
 - USB 截图验证 480×480 物理输出。
 
 后续新增主题时至少覆盖：

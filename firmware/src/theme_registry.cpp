@@ -8,6 +8,7 @@
 #include "famicom_theme.h"
 #include "gundam_theme.h"
 #include "walle_theme.h"
+#include "walle_blueprint_theme.h"
 #include "walle_v10_theme.h"
 
 namespace {
@@ -20,6 +21,7 @@ const ThemePack* const THEMES[] = {
     &gundam_theme_pack(),
     &walle_theme_pack(),
     &walle_v10_theme_pack(),
+    &walle_blueprint_theme_pack(),
 };
 
 bool valid_theme_id(const char* id) {

@@ -86,3 +86,34 @@ not appear falsely disabled after activation.
 Regenerate the WALL-E EARTH clean PNG and runtime assets with:
 
 `python3 tools/generate_walle_v10_theme_assets.py`
+
+`walle_blueprint_bg.rgb565` is the full-screen static engineering drawing for
+the `walle_blueprint` firmware theme, whose user-facing name is
+`WALL-E BLUEPRINT`. Its approved reference and clean runtime source are:
+
+`docs/assets/walle-theme-v15-refined-v4.png`
+
+`docs/assets/walle-theme-blueprint-clean.png`
+
+The clean scene preserves the navy paper texture, warm-gold frames, camera pod,
+exploded WALL-E body, arms, sprout, triangular treads and all fixed captions.
+LVGL draws live values, mode headings, battery text, reset countdown, and the
+three resized footer capsules with their consistently scaled labels and lamps.
+
+`walle_blueprint_bar_active.rgb565` and
+`walle_blueprint_bar_inactive.rgb565` contain the two palette states for the
+ten quota cells. `walle_blueprint_bar_mask.bin` identifies every cell so
+the firmware can update only the affected pixels in the PSRAM-backed background.
+Each cell is 18x22 pixels with a fixed three-pixel gap and a shared row palette,
+so every visible block has identical geometry. At 95%, nine cells are active and
+one is inactive; 100% activates all ten.
+
+`walle_blueprint_battery_active.rgb565`,
+`walle_blueprint_battery_inactive.rgb565` and
+`walle_blueprint_battery_mask.bin` provide seven dynamic battery cells. The
+outer icon remains in the static blueprint, while the fill follows the live
+battery percentage; 100% activates all seven cells.
+
+Regenerate the WALL-E BLUEPRINT clean PNG and runtime assets with:
+
+`python3 tools/generate_walle_blueprint_theme_assets.py`
