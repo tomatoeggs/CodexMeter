@@ -1,0 +1,25 @@
+docs/themes-walle.md
+  s_3a5abf14394f82::t_c49aaa0eea1460 25-27
+firmware/data/themes/README.md
+  s_3a5abf14394f82::t_2248d650e7e948 98-104
+tools/generate_walle_blueprint_theme_assets.py
+  s_3a5abf14394f82::t_1768d544d3c7b6 2,5-9,15,71-90,149-277,351-353,390-401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0917c28ab9f994d7439d87ef387496a759c41281",
+  "prompts": {},
+  "sessions": {
+    "s_3a5abf14394f82": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f94ad-fa09-7ef2-973b-ce47e68050b4",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
