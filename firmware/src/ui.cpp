@@ -40,10 +40,10 @@ const lv_color_t EDIT_YELLOW = lv_color_hex(0xffd43b);
 
 enum class SettingItem : uint8_t {
   Theme = 0,
-  Brightness = 1,
-  Volume = 2,
-  AutoTheme = 3,
-  AutoInterval = 4,
+  AutoTheme = 1,
+  AutoInterval = 2,
+  Brightness = 3,
+  Volume = 4,
   Exit = 5,
 };
 
@@ -59,10 +59,10 @@ const DriftOffset DRIFT_OFFSETS[] = {
 
 const char* const SETTING_LABELS[SETTINGS_ITEM_COUNT] = {
     "主题",
+    "自动换主题",
+    "自动换主题间隔",
     "屏幕亮度",
     "音量",
-    "自动换肤",
-    "切换间隔",
     "退出设置",
 };
 

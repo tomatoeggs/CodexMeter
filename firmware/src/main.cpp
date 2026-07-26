@@ -30,10 +30,19 @@ static Arduino_DataBus* bus = new Arduino_ESP32QSPI(
 static Arduino_CO5300* gfx = new Arduino_CO5300(
     bus, CODEXMETER_LCD_RST, 0, CODEXMETER_SCREEN_W, CODEXMETER_SCREEN_H, 0, 0, 0, 0);
 
+enum class GpioButtonEvent : uint8_t {
+  None,
+  ShortPress,
+  LongPress,
+};
+
 struct GpioButtonState {
   uint8_t pin;
-  bool was_down;
-  uint32_t last_press_ms;
+  bool raw_down;
+  bool stable_down;
+  bool long_press_sent;
+  uint32_t raw_changed_ms;
+  uint32_t pressed_ms;
 };
 
 static uint16_t* lv_buf_1 = nullptr;
@@ -572,30 +581,63 @@ static void handle_serial() {
   }
 }
 
-static void handle_button() {
-  static GpioButtonState left = {CODEXMETER_BUTTON_LEFT_PIN, false, 0};
-  static GpioButtonState right = {CODEXMETER_BUTTON_RIGHT_PIN, false, 0};
+static GpioButtonEvent take_gpio_button_event(GpioButtonState* button) {
+  uint32_t now = millis();
+  bool down = digitalRead(button->pin) == LOW;
+  if (down != button->raw_down) {
+    button->raw_down = down;
+    button->raw_changed_ms = now;
+  }
 
-  auto pressed = [](GpioButtonState* button) {
-    bool down = digitalRead(button->pin) == LOW;
-    bool edge = down && !button->was_down;
-    uint32_t now = millis();
-    bool accepted = edge && now - button->last_press_ms >= 120;
-    if (accepted) {
-      button->last_press_ms = now;
+  if (button->raw_down != button->stable_down &&
+      now - button->raw_changed_ms >= CODEXMETER_BUTTON_DEBOUNCE_MS) {
+    button->stable_down = button->raw_down;
+    if (button->stable_down) {
+      button->pressed_ms = now;
+      button->long_press_sent = false;
+    } else if (!button->long_press_sent) {
+      return GpioButtonEvent::ShortPress;
     }
-    button->was_down = down;
-    return accepted;
-  };
+  }
 
-  if (pressed(&left) && screen_on) {
+  if (button->raw_down && button->stable_down &&
+      !button->long_press_sent &&
+      now - button->pressed_ms >= CODEXMETER_BUTTON_LONG_PRESS_MS) {
+    button->long_press_sent = true;
+    return GpioButtonEvent::LongPress;
+  }
+  return GpioButtonEvent::None;
+}
+
+static void handle_button() {
+  static GpioButtonState left = {
+      CODEXMETER_BUTTON_LEFT_PIN, false, false, false, 0, 0};
+  static GpioButtonState right = {
+      CODEXMETER_BUTTON_RIGHT_PIN, false, false, false, 0, 0};
+
+  GpioButtonEvent left_event = take_gpio_button_event(&left);
+  if (left_event == GpioButtonEvent::LongPress && screen_on &&
+      !ui_settings_visible() && !ui_alert_visible()) {
+    bool switched = ui_next_theme(-1, true);
+    device_logf(
+        "INFO", "left key long press theme previous result=%d",
+        switched ? 1 : 0);
+  } else if (left_event == GpioButtonEvent::ShortPress && screen_on) {
     if (ui_settings_visible()) {
       ui_settings_move(-1);
     } else {
       adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "left");
     }
   }
-  if (pressed(&right) && screen_on) {
+
+  GpioButtonEvent right_event = take_gpio_button_event(&right);
+  if (right_event == GpioButtonEvent::LongPress && screen_on &&
+      !ui_settings_visible() && !ui_alert_visible()) {
+    bool switched = ui_next_theme(1, true);
+    device_logf(
+        "INFO", "right key long press theme next result=%d",
+        switched ? 1 : 0);
+  } else if (right_event == GpioButtonEvent::ShortPress && screen_on) {
     if (ui_settings_visible()) {
       ui_settings_move(1);
     } else {

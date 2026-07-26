@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v3.6.1`](CHANGELOG.md)。
+当前稳定版本为 [`v3.7.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -39,7 +39,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 - 通过 BLE 蓝牙把用量和提醒发送到 Waveshare ESP32-S3-Touch-AMOLED-2.16。
 - 支持一台 Mac 同时驱动多台已登记的 CodexMeter；设备按稳定短 ID 自动发现和重连。
 - ESP32 端内置 `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、`WALL-E`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 八套主题；主题拥有独立布局和动画，并共享同一份只读仪表盘数据。
-- 中间键短按进入设备设置页，可调整主题、亮度、自动换肤开关与切换间隔；中间键长按切换亮屏/关屏。
+- 左、右键短按调整亮度，长按切换上一个、下一个主题；中间键短按进入设备设置页，可调整主题、自动换主题开关、自动换主题间隔与亮度，中间键长按切换亮屏/关屏。
 - 支持按 1–1440 分钟的有效展示时间自动轮换主题；关屏、设置页、任务提醒和系统浮层期间暂停计时。
 - Codex 返回 5h 窗口时保持原有的 5h/7d 余量主页；只返回 7d 窗口时自动切换为今日/近7天 Token 活动与 7d 余量主页。
 - 近 7 天 Token 用量达到 B/T 量级时固定保留两位小数，例如 `1.14B`。
@@ -143,9 +143,9 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 
 按键：
 
-- 左键（GPIO0）：仪表盘降低亮度；设置页向上选择或减小当前值。
+- 左键（GPIO0）：仪表盘短按降低亮度、长按切换到上一个主题；设置页短按向上选择或减小当前值。
 - 中键（AXP2101 PKEY）：短按进入设置、编辑或确认；长按切换亮屏/关屏。
-- 右键（GPIO18）：仪表盘增加亮度；设置页向下选择或增大当前值。
+- 右键（GPIO18）：仪表盘短按增加亮度、长按切换到下一个主题；设置页短按向下选择或增大当前值。
 
 板级引脚配置集中放在 `firmware/include/config.h`。如果硬件版本不同，优先修改这个文件。
 
@@ -253,7 +253,7 @@ daemon 不读取、不打印 Codex 登录 token。
 - `walle_v10`（显示名 `WALL-E EARTH`）：以夕阳废土城市、幼苗靴、WALL-E 主体、十枚额度叶和像素显示器构成的地球复育终端。
 - `walle_blueprint`（显示名 `WALL-E BLUEPRINT`）：以深海军蓝工程图、暖金线稿、WALL-E 爆炸结构、动态电池和十格额度条构成的机器人维修蓝图。
 
-设置页包含主题、屏幕亮度、音量、自动换肤、切换间隔和退出设置。音量值当前仅作为持久化能力预留，目标硬件尚未接入声音输出。设置页 30 秒无操作会自动退出；编辑中的未确认值会恢复。自动换肤只累计仪表盘真正可见的时间，范围为 1 分钟至 24 小时。
+设置页依次包含主题、自动换主题、自动换主题间隔、屏幕亮度、音量和退出设置。音量值当前仅作为持久化能力预留，目标硬件尚未接入声音输出。设置页 30 秒无操作会自动退出；编辑中的未确认值会恢复。自动换主题只累计仪表盘真正可见的时间，范围为 1 分钟至 24 小时。
 
 主题接口已为开机动画和任务完成页预留独立扩展点，当前这两个场景继续使用系统默认实现。新增主题时请参阅 [`docs/theme-architecture.md`](docs/theme-architecture.md)。
 
