@@ -1,0 +1,23 @@
+firmware/include/config.h
+  s_57e755d3ea6c5d::t_39ebf81eed3eb4 28-29
+firmware/src/main.cpp
+  s_57e755d3ea6c5d::t_87985c2afa96bb 33-38,41-45,584-599,601,603-625,632-640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1ae917f8e06517bcad011aaa901b6ba37a010afe",
+  "prompts": {},
+  "sessions": {
+    "s_57e755d3ea6c5d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9d05-8ba5-7100-86b8-87258a787722",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
