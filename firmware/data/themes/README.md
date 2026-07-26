@@ -95,10 +95,13 @@ the `walle_blueprint` firmware theme, whose user-facing name is
 
 `docs/assets/walle-theme-blueprint-clean.png`
 
-The clean scene preserves the navy paper texture, warm-gold frames, camera pod,
-exploded WALL-E body, arms, sprout, triangular treads and all fixed captions.
-LVGL draws live values, mode headings, battery text, reset countdown, and the
-three resized footer capsules with their consistently scaled labels and lamps.
+The clean scene preserves the warm-gold frames, camera pod, exploded WALL-E
+body, arms, sprout, triangular treads and all fixed captions. Its visible navy
+paper is rebuilt as one continuous field behind the preserved artwork, instead
+of filling each erased text rectangle independently, so live labels do not sit
+on subtly mismatched patches. LVGL draws live values, mode headings, battery
+text, reset countdown, and the three resized footer capsules with their
+consistently scaled labels and lamps.
 
 `walle_blueprint_bar_active.rgb565` and
 `walle_blueprint_bar_inactive.rgb565` contain the two palette states for the

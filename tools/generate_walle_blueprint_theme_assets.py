@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Build the WALL-E BLUEPRINT static layer and quota-bar assets.
+"""Build the WALL-E BLUEPRINT static layer and dynamic cell assets.
 
 The approved blueprint is preserved as a full-screen RGB565 background. Live
-headings and values are removed from that raster and rendered by LVGL. Ten
-quota cells and seven battery cells retain the source palette through active,
-inactive, and per-cell mask assets.
+headings and values are removed from that raster and rendered by LVGL. The
+visible navy paper is reconstructed as one continuous field so cleared text
+areas cannot leave rectangular color patches. Ten quota cells and seven
+battery cells retain the source palette through active, inactive, and per-cell
+mask assets.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from pathlib import Path
 
 from generate_walle_theme_assets import (
@@ -65,6 +68,26 @@ BATTERY_SLOTS = tuple(
 )
 
 
+def is_navy(color: tuple[int, int, int]) -> bool:
+    return (
+        color[0] < 38
+        and color[1] < 82
+        and color[2] < 135
+        and color[2] > color[1] * 1.08
+    )
+
+
+def inside_any(
+    x: int,
+    y: int,
+    bounds_list: tuple[tuple[int, int, int, int], ...],
+) -> bool:
+    return any(
+        x0 <= x < x1 and y0 <= y < y1
+        for x0, y0, x1, y1 in bounds_list
+    )
+
+
 def fill_navy_gradient(
     source: bytearray,
     output: bytearray,
@@ -72,14 +95,6 @@ def fill_navy_gradient(
 ) -> None:
     """Reconstruct a live-text rectangle from nearby navy-only samples."""
     x0, y0, x1, y1 = bounds
-
-    def is_navy(color: tuple[int, int, int]) -> bool:
-        return (
-            color[0] < 38
-            and color[1] < 82
-            and color[2] < 135
-            and color[2] > color[1] * 1.08
-        )
 
     def average(colors: list[tuple[int, int, int]]):
         if not colors:
@@ -129,6 +144,135 @@ def fill_navy_gradient(
                 for channel in range(3)
             )
             set_pixel(output, x, y, color)  # type: ignore[arg-type]
+
+
+def build_background_mask(clean: bytearray) -> bytearray:
+    """Find paper pixels without crossing the preserved line artwork."""
+    mask = bytearray(WIDTH * HEIGHT)
+    queue: deque[int] = deque()
+
+    def add_seed(x: int, y: int) -> None:
+        index = y * WIDTH + x
+        if mask[index] or not is_navy(pixel(clean, x, y)):
+            return
+        mask[index] = 1
+        queue.append(index)
+
+    for x in range(WIDTH):
+        add_seed(x, 0)
+        add_seed(x, HEIGHT - 1)
+    for y in range(HEIGHT):
+        add_seed(0, y)
+        add_seed(WIDTH - 1, y)
+
+    # These navy fields are enclosed by their gold outlines, but still form
+    # background paper and must be repainted together with the open page.
+    for x, y in ((330, 20), (20, 400), (360, 350)):
+        add_seed(x, y)
+
+    while queue:
+        index = queue.popleft()
+        x = index % WIDTH
+        y = index // WIDTH
+        if x > 0:
+            add_seed(x - 1, y)
+        if x + 1 < WIDTH:
+            add_seed(x + 1, y)
+        if y > 0:
+            add_seed(x, y - 1)
+        if y + 1 < HEIGHT:
+            add_seed(x, y + 1)
+    return mask
+
+
+def repaint_navy_paper(
+    source: bytearray,
+    clean: bytearray,
+    excluded_samples: tuple[tuple[int, int, int, int], ...],
+) -> None:
+    """Redraw one continuous navy paper field behind preserved line art."""
+    background = build_background_mask(clean)
+    step = 24
+    grid_x = list(range(0, WIDTH, step))
+    grid_y = list(range(0, HEIGHT, step))
+    if grid_x[-1] != WIDTH - 1:
+        grid_x.append(WIDTH - 1)
+    if grid_y[-1] != HEIGHT - 1:
+        grid_y.append(HEIGHT - 1)
+
+    grid: list[list[tuple[int, int, int]]] = []
+    for center_y in grid_y:
+        row: list[tuple[int, int, int]] = []
+        for center_x in grid_x:
+            samples: list[tuple[int, int, int]] = []
+            for radius in (18, 36, 60):
+                samples.clear()
+                for y in range(
+                    max(0, center_y - radius),
+                    min(HEIGHT, center_y + radius + 1),
+                    2,
+                ):
+                    for x in range(
+                        max(0, center_x - radius),
+                        min(WIDTH, center_x + radius + 1),
+                        2,
+                    ):
+                        if not background[y * WIDTH + x]:
+                            continue
+                        if inside_any(x, y, excluded_samples):
+                            continue
+                        color = pixel(source, x, y)
+                        if is_navy(color):
+                            samples.append(color)
+                if len(samples) >= 24:
+                    break
+            if samples:
+                samples.sort(key=lambda color: sum(color))
+                trim = len(samples) // 8
+                kept = samples[trim : len(samples) - trim] if trim else samples
+                count = len(kept)
+                row.append(tuple(
+                    sum(color[channel] for color in kept) // count
+                    for channel in range(3)
+                ))
+            else:
+                row.append((0, 39, 83))
+        grid.append(row)
+
+    for y in range(HEIGHT):
+        gy = min(y // step, len(grid_y) - 2)
+        y0 = grid_y[gy]
+        y1 = grid_y[gy + 1]
+        wy = 0 if y1 == y0 else (y - y0) / (y1 - y0)
+        for x in range(WIDTH):
+            if not background[y * WIDTH + x]:
+                continue
+            gx = min(x // step, len(grid_x) - 2)
+            x0 = grid_x[gx]
+            x1 = grid_x[gx + 1]
+            wx = 0 if x1 == x0 else (x - x0) / (x1 - x0)
+            top = tuple(
+                grid[gy][gx][channel] * (1 - wx)
+                + grid[gy][gx + 1][channel] * wx
+                for channel in range(3)
+            )
+            bottom = tuple(
+                grid[gy + 1][gx][channel] * (1 - wx)
+                + grid[gy + 1][gx + 1][channel] * wx
+                for channel in range(3)
+            )
+            # A small deterministic correlated dither prevents RGB565 bands
+            # without recreating the rectangular texture mismatch.
+            noise = ((x * 17 + y * 31 + x * y * 3) & 3) - 1
+            color = tuple(
+                max(0, min(255, round(
+                    top[channel] * (1 - wy)
+                    + bottom[channel] * wy
+                    + noise
+                )))
+                for channel in range(3)
+            )
+            set_pixel(clean, x, y, color)  # type: ignore[arg-type]
 
 
 def build_bar_assets(
@@ -204,9 +348,9 @@ def build_assets(root: Path) -> None:
     source = decode_png(reference_path)
     clean = bytearray(source)
 
-    # These rectangles contain only live copy over an otherwise empty navy
-    # field. Reconstruct each row from nearby navy-only samples so neither the
-    # warm line art nor the generated print shadow bleeds into the clean layer.
+    # First remove live copy without allowing the warm line art or generated
+    # print shadow to bleed into the clean layer. A continuous paper pass below
+    # then removes the remaining per-rectangle color discontinuities.
     live_regions = (
         (405, 7, 465, 40),    # battery percentage
         (15, 66, 119, 85),    # primary heading
@@ -242,6 +386,18 @@ def build_assets(root: Path) -> None:
     fill_navy_gradient(source, clean, (349, 115, 433, 120))
     for x in range(351, 431):
         set_pixel(clean, x, 112, pixel(source, x, 117))
+
+    repaint_navy_paper(
+        source,
+        clean,
+        live_regions
+        + (
+            (326, 13, 395, 32),
+            (16, 390, 229, 416),
+            (5, 429, 464, 472),
+            (349, 115, 433, 120),
+        ),
+    )
 
     active, inactive, mask = build_bar_assets(source)
     battery_active, battery_inactive, battery_mask = (

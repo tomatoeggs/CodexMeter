@@ -22,7 +22,9 @@ Token 与 7d 剩余额度，右上圆形仪表显示近 7 天用量，右下维�
   十格额度与七格电池更新，以及 LittleFS / PSRAM 资源管理。
 - `walle_blueprint_bg.rgb565` 是移除所有运行时字段后的静态蓝图；设计参考与
   干净运行时 PNG 分别为 `assets/walle-theme-v15-refined-v4.png` 和
-  `assets/walle-theme-blueprint-clean.png`。
+  `assets/walle-theme-blueprint-clean.png`。生成器会识别与屏幕边缘连通的蓝图纸
+  区域，在保留暖金线稿与封闭阴影的前提下重建一张连续底色，避免
+  动态文字擦除区留下矩形色差。
 - `walle_blueprint_bar_active.rgb565`、
   `walle_blueprint_bar_inactive.rgb565` 与
   `walle_blueprint_bar_mask.bin` 保存十个格位的亮态、暗态和像素掩码。
