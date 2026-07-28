@@ -12,9 +12,12 @@ WINDOW_7D_MINS = 7 * 24 * 60
 TOKEN_ACTIVITY_LOCAL_MIN_DIFF = 1_000_000
 TOKEN_ACTIVITY_LOCAL_REL_DIFF = 0.25
 USAGE_RECOVERY_CONFIRMATIONS = 2
+USAGE_EARLY_RESET_CONFIRMATIONS = 3
+USAGE_EARLY_RESET_CONFIRMATION_SEC = 10 * 60
 USAGE_REMAINING_JUMP_THRESHOLD = 25
 USAGE_RESET_GRACE_SEC = 60
 USAGE_SAME_RESET_TOLERANCE_SEC = 120
+USAGE_EARLY_RESET_WINDOW_TOLERANCE_SEC = 120
 USAGE_5H_RESET_JUMP_SEC = 60 * 60
 USAGE_7D_RESET_JUMP_SEC = 24 * 60 * 60
 USAGE_INITIAL_EMPTY_D7_WINDOW_SEC = 6 * 24 * 60 * 60
@@ -69,6 +72,8 @@ class UsageSnapshotStabilizer:
         self.confirmations = max(1, confirmations)
         self.trusted = trusted
         self.pending: UsageSnapshot | None = None
+        self.pending_reason: str | None = None
+        self.pending_started_at: int | None = None
         self.pending_count = 0
 
     def stabilize(self, snapshot: UsageSnapshot) -> UsageSnapshotDecision:
@@ -81,13 +86,25 @@ class UsageSnapshotStabilizer:
             self._accept(snapshot)
             return UsageSnapshotDecision(snapshot, accepted=True, reason="accepted")
 
-        if self.pending is not None and _same_snapshot_values(self.pending, snapshot):
+        if (
+            self.pending is not None
+            and self.pending_reason == reason
+            and _same_transient_candidate(reason, self.pending, snapshot)
+        ):
             self.pending_count += 1
         else:
             self.pending = snapshot
+            self.pending_reason = reason
+            self.pending_started_at = snapshot.generated_at
             self.pending_count = 1
 
-        if _can_confirm_transient(reason) and self.pending_count >= self.confirmations:
+        pending_started_at = (
+            self.pending_started_at
+            if self.pending_started_at is not None
+            else snapshot.generated_at
+        )
+        pending_elapsed = snapshot.generated_at - pending_started_at
+        if self._can_confirm_transient(reason, pending_elapsed):
             self._accept(snapshot)
             return UsageSnapshotDecision(
                 snapshot,
@@ -102,6 +119,8 @@ class UsageSnapshotStabilizer:
     def _accept(self, snapshot: UsageSnapshot) -> None:
         self.trusted = snapshot
         self.pending = None
+        self.pending_reason = None
+        self.pending_started_at = None
         self.pending_count = 0
 
     def _transient_reason(
@@ -131,6 +150,16 @@ class UsageSnapshotStabilizer:
             USAGE_7D_RESET_JUMP_SEC,
         )
         return d7_reason or h5_reason
+
+    def _can_confirm_transient(self, reason: str, pending_elapsed: int) -> bool:
+        if reason.endswith("_remaining_recovery"):
+            return self.pending_count >= self.confirmations
+        if reason.endswith("_early_reset_jump"):
+            return (
+                self.pending_count >= USAGE_EARLY_RESET_CONFIRMATIONS
+                and pending_elapsed >= USAGE_EARLY_RESET_CONFIRMATION_SEC
+            )
+        return False
 
 
 def clamp_percent(value: float | None) -> float | None:
@@ -394,8 +423,50 @@ def _same_snapshot_values(left: UsageSnapshot, right: UsageSnapshot) -> bool:
     )
 
 
-def _can_confirm_transient(reason: str) -> bool:
-    return reason.endswith("_remaining_recovery")
+def _same_transient_candidate(
+    reason: str, left: UsageSnapshot, right: UsageSnapshot
+) -> bool:
+    if reason.endswith("_remaining_recovery"):
+        return _same_snapshot_values(left, right)
+    if reason == "d7_early_reset_jump":
+        return (
+            left.status == right.status
+            and left.d7_remaining_percent == right.d7_remaining_percent
+            and _same_reset_window(
+                left.d7_resets_at,
+                left.generated_at,
+                right.d7_resets_at,
+                right.generated_at,
+            )
+        )
+    if reason == "h5_early_reset_jump":
+        return (
+            left.status == right.status
+            and left.h5_remaining_percent == right.h5_remaining_percent
+            and _same_reset_window(
+                left.h5_resets_at,
+                left.generated_at,
+                right.h5_resets_at,
+                right.generated_at,
+            )
+        )
+    return False
+
+
+def _same_reset_window(
+    left_reset: int | None,
+    left_generated_at: int,
+    right_reset: int | None,
+    right_generated_at: int,
+) -> bool:
+    if left_reset is None or right_reset is None:
+        return False
+    if abs(left_reset - right_reset) <= USAGE_EARLY_RESET_WINDOW_TOLERANCE_SEC:
+        return True
+
+    left_horizon = left_reset - left_generated_at
+    right_horizon = right_reset - right_generated_at
+    return abs(left_horizon - right_horizon) <= USAGE_EARLY_RESET_WINDOW_TOLERANCE_SEC
 
 
 def _window_transient_reason(
