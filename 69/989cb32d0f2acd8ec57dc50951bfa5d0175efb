@@ -1,0 +1,23 @@
+codexmeter/limits.py
+  s_63e842c762ea45::t_76299d3c834883 15-16,20,75-76,89-93,97-98,101-107,122-123,154-163,426-469
+tests/test_limits.py
+  s_63e842c762ea45::t_eaa79a4838bf24 4,261,288-320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "69989cb32d0f2acd8ec57dc50951bfa5d0175efb",
+  "prompts": {},
+  "sessions": {
+    "s_63e842c762ea45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f373f-5802-7082-b6ad-497a45843699",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
