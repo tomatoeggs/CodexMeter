@@ -17,9 +17,9 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 <p align="center"><em>CodexMeter 实物运行效果</em></p>
 
-| Token 活动主页（新版） | 5h/7d 余量主页 | 任务完成提醒 |
-| --- | --- | --- |
-| ![CodexMeter 新版 Token 活动主页](docs/assets/token-dashboard.png) | ![CodexMeter 5h 和 7d 余量主页](docs/assets/dashboard.png) | ![CodexMeter 四行任务完成摘要](docs/assets/task-complete.png) |
+| Token 活动主页（新版） | 5h/7d 余量主页 | 任务完成提醒 | 设备设置页 |
+| --- | --- | --- | --- |
+| ![CodexMeter 新版 Token 活动主页](docs/assets/token-dashboard.png) | ![CodexMeter 5h 和 7d 余量主页](docs/assets/dashboard.png) | ![CodexMeter 四行任务完成摘要](docs/assets/task-complete.png) | ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
 
 | Classic 主题 | Cyberpunk 主题 | Famicom 主题 | Animal Crossing 主题 |
 | --- | --- | --- | --- |
@@ -29,13 +29,9 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 | --- | --- | --- | --- |
 | ![CodexMeter Gundam 主题](docs/verification/gundam-theme-final.png) | ![CodexMeter WALL-E 主题](docs/verification/walle-theme-final.png) | ![CodexMeter WALL-E EARTH 主题](docs/verification/walle-v10-secondary-center-x399.png) | ![CodexMeter WALL-E BLUEPRINT 主题](docs/verification/walle-blueprint-final.png) |
 
-| GARGANTUA 主题 |
-| --- |
-| ![CodexMeter GARGANTUA 主题](docs/verification/gargantua/new-device-646355-left-aligned.png) |
-
-| 设备设置页 |
-| --- |
-| ![CodexMeter 设置页](docs/verification/theme-system-settings.png) |
+| GARGANTUA 主题 |  |  |  |
+| --- | --- | --- | --- |
+| ![CodexMeter GARGANTUA 主题](docs/verification/gargantua/new-device-646355-left-aligned.png) |  |  |  |
 
 ## 主要功能
 
