@@ -1,0 +1,27 @@
+docs/assets/interstellar-gargantua-v12-clean.svg
+  s_937b106547f632::t_ab0face62cc2a1 1-23
+docs/assets/interstellar-gargantua-v12.svg
+  s_937b106547f632::t_04c7173d8fe087 1-48
+firmware/src/gargantua_theme.h
+  s_937b106547f632::t_e14dd717415ae3 1-5
+firmware/src/theme_registry.cpp
+  s_937b106547f632::t_1e0d855ac2a582 9,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fe981fcc278c3f07e9fa28a603672624250cf63b",
+  "prompts": {},
+  "sessions": {
+    "s_937b106547f632": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8b3-2bf3-7c83-9c37-25ca42fb18e8",
+        "model": "unknown"
+      },
+      "human_author": "Yancy <yancy.wxyz@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
