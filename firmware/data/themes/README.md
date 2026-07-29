@@ -43,6 +43,24 @@ texture. `gundam_bg.rgb565` is its direct little-endian RGB565 conversion.
 LVGL draws all live headings, values, quota cells, battery, reset countdown,
 task lamps and synchronization state above it.
 
+`gargantua_bg.rgb565` is the 480×480 static black-hole scene for the
+`gargantua` firmware theme. Its approved V12 reference and clean runtime source
+are:
+
+`docs/assets/interstellar-gargantua-v12.png`
+
+`docs/assets/interstellar-gargantua-v12-clean.png`
+
+Both editable SVG compositions reference the preserved high-resolution base at
+`docs/assets/interstellar-gargantua-v8-background.png`.
+
+The runtime background preserves the approved tilted Gargantua composition,
+top-left contrast pocket, bottom veil, separator and rounded border. LVGL draws
+the live token totals, seven-day remainder, reset countdown, battery and task
+count above it with device-calibrated Teko SemiBold and D-DIN Condensed Bold
+typography. The file is a direct little-endian RGB565 conversion of the clean
+runtime source and has the expected 460800-byte size.
+
 `walle_bg.rgb565` is the 480×480 static mechanical layer for the `walle`
 theme. Its clean source is:
 

@@ -28,7 +28,7 @@
 - `firmware/src/model.*`：负责解析 BLE JSON 为固件内部模型，并记录 `usage` payload 接收时的 `millis()`，用于后续倒计时计算。
 - `firmware/src/dashboard_view_model.*`：把用量、电量、任务活动和连接状态转换为主题只读的统一仪表盘模型与格式化文本。
 - `firmware/src/theme.h` / `theme_registry.*` / `theme_runtime.*`：定义主题契约、编译期注册表，以及当前主题的挂载、更新、动画 tick、卸载和安全回退生命周期。
-- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `walle_theme.*` / `walle_v10_theme.*` / `walle_blueprint_theme.*`：当前内置的八套独立 LVGL 仪表盘实现。
+- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `gargantua_theme.*` / `walle_theme.*` / `walle_v10_theme.*` / `walle_blueprint_theme.*`：当前内置的九套独立 LVGL 仪表盘实现。
 - `firmware/src/theme_rotation.*`：只在仪表盘真实可见时累计的自动换主题策略。
 - `firmware/src/device_settings.*`：保存主题、亮度、预留音量和自动换主题配置；使用带版本和 CRC 的 NVS 记录以及延迟写入。
 - `firmware/src/ui.*`：负责主题运行时、设置页、系统浮层、防烧屏漂移、红黄绿闪屏和任务完成视图之间的场景协调。
@@ -149,7 +149,7 @@ macOS daemon 使用 50MB 当前日志加一个 50MB 轮转备份，总占用上�
 
 正常页：
 
-- `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、`WALL-E`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 主题使用独立 LVGL 对象树，但读取同一份 `DashboardViewModel`。
+- `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、`GARGANTUA`、`WALL-E`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 主题使用独立 LVGL 对象树，但读取同一份 `DashboardViewModel`。
 - Codex 返回 5h 窗口时展示 5h/7d 余量语义；只返回有效 7d 数据时展示今日/近7天 Token、7d 额度和重置窗口。具体位置、颜色、字体和图形由主题决定。
 - 运行中任务由当前主题自行表达：可使用状态图形或数字计数；没有运行中任务时可显示空闲状态。
 - 按键：中间短按进入设置或确认，中间长按切换亮屏/关屏；仪表盘中左/右短按快捷调节亮度。

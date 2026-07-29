@@ -6,6 +6,7 @@
 #include "classic_theme.h"
 #include "cyberpunk_theme.h"
 #include "famicom_theme.h"
+#include "gargantua_theme.h"
 #include "gundam_theme.h"
 #include "walle_theme.h"
 #include "walle_blueprint_theme.h"
@@ -19,6 +20,7 @@ const ThemePack* const THEMES[] = {
     &famicom_theme_pack(),
     &animal_crossing_theme_pack(),
     &gundam_theme_pack(),
+    &gargantua_theme_pack(),
     &walle_theme_pack(),
     &walle_v10_theme_pack(),
     &walle_blueprint_theme_pack(),
