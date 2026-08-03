@@ -2,6 +2,13 @@
 
 ## 未发布
 
+## v3.9.0
+
+- 为设备端主循环接入 ESP-IDF task watchdog：Arduino `loopTask` 超过 30 秒未喂狗时由系统自动复位，避免 BLE、串口和 UI tick 同时失活后只能物理重启。
+- 增加基于最近有效主机 payload 的本地息屏兜底：即使 BLE callback 未正常进入断开状态，设备 5 分钟没有收到主机数据时也会记录 `host_stale` 并关闭屏幕。
+- 新增串口 `health` 诊断命令，输出屏幕、BLE、最近主机 payload、最近 usage 和 watchdog 状态，便于后续区分主机未产生数据、BLE 未送达和设备主循环异常。
+- 完成固件编译、宿主回归测试和 646355 真机 LittleFS / 固件烧录验证；确认 watchdog 启用、BLE 队列清零、任务状态下发和自动主题设置保持开启。
+
 ## v3.8.0
 
 - 新增第九套设备端主题 `GARGANTUA`（内部 ID 为 `gargantua`）：以倾斜的卡冈图雅黑洞、完整的左侧吸积盘和电影式引力透镜柔光重组 480×480 Token 仪表盘。

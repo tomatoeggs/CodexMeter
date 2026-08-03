@@ -1,8 +1,10 @@
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
 #include <lvgl.h>
+#include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
+#include <esp_task_wdt.h>
 
 #include "ble_service.h"
 #include "config.h"
@@ -56,7 +58,9 @@ static ControlModel control;
 static char recent_alert_ids[8][sizeof(alert.id)];
 static uint8_t recent_alert_index = 0;
 static uint32_t last_usage_ms = 0;
+static uint32_t last_host_payload_ms = 0;
 static bool screen_on = true;
+static bool watchdog_enabled = false;
 static int brightness_percent = CODEXMETER_BRIGHTNESS_DEFAULT;
 static uint8_t displayed_rotation = 0;
 static uint8_t rotation_ramp_step = 0;
@@ -101,6 +105,40 @@ static const char* reset_reason_label(esp_reset_reason_t reason) {
     default:
       return "unknown";
   }
+}
+
+static void feed_watchdog() {
+  if (watchdog_enabled) {
+    esp_task_wdt_reset();
+  }
+}
+
+static void init_watchdog() {
+#if CODEXMETER_WATCHDOG_TIMEOUT_SEC > 0
+  esp_task_wdt_config_t config = {};
+  config.timeout_ms = CODEXMETER_WATCHDOG_TIMEOUT_SEC * 1000UL;
+  config.idle_core_mask = 0;
+  config.trigger_panic = true;
+
+  esp_err_t err = esp_task_wdt_init(&config);
+  if (err == ESP_ERR_INVALID_STATE) {
+    err = esp_task_wdt_reconfigure(&config);
+  }
+  if (err != ESP_OK) {
+    device_logf("WARN", "watchdog init failed %s", esp_err_to_name(err));
+    return;
+  }
+
+  err = esp_task_wdt_add(nullptr);
+  if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+    watchdog_enabled = true;
+    device_logf(
+        "INFO", "watchdog enabled timeout=%lus",
+        (unsigned long)CODEXMETER_WATCHDOG_TIMEOUT_SEC);
+  } else {
+    device_logf("WARN", "watchdog add failed %s", esp_err_to_name(err));
+  }
+#endif
 }
 
 static void log_lvgl_mem(const char* phase) {
@@ -310,6 +348,9 @@ static void handle_orientation() {
 
 static void handle_json(const char* json) {
   PayloadKind kind = parse_payload(json, &usage, &alert, &activity, &control);
+  if (kind != PAYLOAD_NONE) {
+    last_host_payload_ms = millis();
+  }
   if (kind == PAYLOAD_USAGE) {
     last_usage_ms = millis();
     ui_update_usage(usage);
@@ -422,7 +463,16 @@ static void send_screenshot() {
   Serial.flush();
   const uint16_t* frame =
       display_rotation_frame((const uint16_t*)sbuf, imu_rotation_quadrant());
-  Serial.write((const uint8_t*)frame, buf_size);
+  const uint8_t* frame_bytes = (const uint8_t*)frame;
+  uint32_t written = 0;
+  while (written < buf_size) {
+    uint32_t remaining = buf_size - written;
+    uint32_t chunk = remaining > 4096UL ? 4096UL : remaining;
+    Serial.write(frame_bytes + written, chunk);
+    written += chunk;
+    feed_watchdog();
+    delay(0);
+  }
   Serial.flush();
   Serial.println();
   Serial.println("SCREENSHOT_END");
@@ -539,6 +589,16 @@ static void handle_serial() {
         device_log_heap("serial");
       } else if (strcmp(buf, "lvheap") == 0) {
         log_lvgl_mem("serial");
+      } else if (strcmp(buf, "health") == 0) {
+        uint32_t now = millis();
+        uint32_t host_age =
+            last_host_payload_ms == 0 ? 0 : now - last_host_payload_ms;
+        uint32_t usage_age = last_usage_ms == 0 ? 0 : now - last_usage_ms;
+        Serial.printf(
+            "HEALTH screen=%d ble=%d host_age_ms=%lu usage_age_ms=%lu wdt=%d\n",
+            screen_on ? 1 : 0, ble_service_connected() ? 1 : 0,
+            (unsigned long)host_age, (unsigned long)usage_age,
+            watchdog_enabled ? 1 : 0);
       } else if (strcmp(buf, "rotate auto") == 0) {
         imu_set_auto_rotation(true);
       } else if (strncmp(buf, "rotate ", 7) == 0) {
@@ -657,9 +717,14 @@ static void handle_ble_screen_policy() {
   static bool was_connected = false;
   static uint32_t disconnected_since_ms = 0;
   static bool disconnect_screen_off_sent = false;
+  static bool host_stale_screen_off_sent = false;
 
   bool connected = ble_service_connected();
   uint32_t now = millis();
+  if (last_host_payload_ms != 0 &&
+      now - last_host_payload_ms < CODEXMETER_HOST_STALE_SCREEN_AFTER_MS) {
+    host_stale_screen_off_sent = false;
+  }
   if (connected) {
     disconnected_since_ms = 0;
     disconnect_screen_off_sent = false;
@@ -670,6 +735,14 @@ static void handle_ble_screen_policy() {
              now - disconnected_since_ms >= CODEXMETER_AUTO_SCREEN_AFTER_MS) {
     set_screen_on(false, "ble_timeout");
     disconnect_screen_off_sent = true;
+  }
+  if (last_host_payload_ms != 0 && !host_stale_screen_off_sent &&
+      now - last_host_payload_ms >= CODEXMETER_HOST_STALE_SCREEN_AFTER_MS) {
+    device_logf(
+        "WARN", "host stale age_ms=%lu ble=%d",
+        (unsigned long)(now - last_host_payload_ms), connected ? 1 : 0);
+    set_screen_on(false, "host_stale");
+    host_stale_screen_off_sent = true;
   }
   was_connected = connected;
 }
@@ -685,6 +758,7 @@ void setup() {
   device_logf(
       "INFO", "reset reason=%d %s", (int)reset_reason,
       reset_reason_label(reset_reason));
+  init_watchdog();
   device_log_heap("setup_start");
 
   pinMode(CODEXMETER_BUTTON_LEFT_PIN, INPUT_PULLUP);
@@ -701,6 +775,7 @@ void setup() {
   ui_set_battery(power_battery_percent(), power_is_charging());
   ble_service_init();
   ble_service_request_refresh();
+  last_host_payload_ms = millis();
   device_log_heap("setup_done");
   device_logf("INFO", "setup complete");
 }
@@ -750,5 +825,6 @@ void loop() {
     ui_set_battery(power_battery_percent(), power_is_charging());
   }
 
+  feed_watchdog();
   delay(5);
 }
