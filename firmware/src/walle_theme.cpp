@@ -54,6 +54,7 @@ struct WalleThemeState {
   lv_obj_t* background = nullptr;
   lv_obj_t* battery_shell = nullptr;
   lv_obj_t* battery_value = nullptr;
+  lv_obj_t* battery_charge_icon = nullptr;
 
   lv_obj_t* primary_heading = nullptr;
   lv_obj_t* primary_value = nullptr;
@@ -573,23 +574,21 @@ void make_status_panel(WalleThemeState* state) {
 }
 
 void make_dynamic_labels(WalleThemeState* state) {
-  state->battery_shell =
-      lv_obj_create(state->root);
-  strip_obj(state->battery_shell);
-  lv_obj_set_size(state->battery_shell, 87, 35);
-  lv_obj_set_pos(state->battery_shell, 370, 29);
-  lv_obj_set_style_bg_opa(
-      state->battery_shell, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(
-      state->battery_shell, 3, 0);
-  lv_obj_set_style_border_opa(
-      state->battery_shell, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(state->battery_shell, 7, 0);
-  state->battery_value = make_label(
+  state->battery_value = make_content_label(
       state->root, "",
       font_or(state->font_30, &lv_font_montserrat_24),
-      DARK, 375, 30, 75, LV_TEXT_ALIGN_CENTER);
-  set_center_scale(state->battery_value, 225, 240);
+      DARK, 0, 31);
+  set_top_left_scale(state->battery_value, 225, 240);
+  state->battery_charge_icon = lv_obj_create(state->root);
+  strip_obj(state->battery_charge_icon);
+  lv_obj_set_size(state->battery_charge_icon, 11, 11);
+  lv_obj_set_pos(state->battery_charge_icon, 0, 41);
+  make_rect(
+      state->battery_charge_icon, 0, 4, 11, 3, DARK, 0);
+  make_rect(
+      state->battery_charge_icon, 4, 0, 3, 11, DARK, 0);
+  lv_obj_add_flag(
+      state->battery_charge_icon, LV_OBJ_FLAG_HIDDEN);
 
   state->primary_heading = make_label(
       state->root, "TODAY TOKEN",
@@ -871,18 +870,39 @@ void update_battery(
     snprintf(text, sizeof(text), "%d%%", percent);
   }
   set_label_text_if_changed(state->battery_value, text);
+  const size_t value_length = strlen(text);
   int scale =
-      strlen(text) >= 4 ? 205
-                        : (strlen(text) == 3 ? 225 : 240);
-  set_center_scale(state->battery_value, scale, 240);
-  bool emphasized =
-      charging || (percent >= 0 && percent <= 10);
-  lv_obj_set_style_border_color(
-      state->battery_shell,
-      charging ? GREEN : RED_LOW, 0);
-  lv_obj_set_style_border_opa(
-      state->battery_shell,
-      emphasized ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+      value_length >= 4 ? 205
+                        : (value_length == 3 ? 225 : 240);
+  set_top_left_scale(state->battery_value, scale, 240);
+  lv_obj_update_layout(state->battery_value);
+
+  constexpr int BATTERY_CENTER_X = 413;
+  constexpr int CHARGE_ICON_GAP = 5;
+  constexpr int CHARGE_ICON_WIDTH = 11;
+  const int value_width =
+      scaled_label_width(state->battery_value, scale);
+  if (charging) {
+    lv_obj_clear_flag(
+        state->battery_charge_icon, LV_OBJ_FLAG_HIDDEN);
+    const int group_width =
+        value_width + CHARGE_ICON_GAP + CHARGE_ICON_WIDTH;
+    const int left_x = BATTERY_CENTER_X - group_width / 2;
+    lv_obj_set_x(state->battery_value, left_x);
+    lv_obj_set_x(
+        state->battery_charge_icon,
+        left_x + value_width + CHARGE_ICON_GAP);
+  } else {
+    lv_obj_add_flag(
+        state->battery_charge_icon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_x(
+        state->battery_value,
+        BATTERY_CENTER_X - value_width / 2);
+  }
+  const bool low_battery = percent >= 0 && percent <= 10;
+  lv_obj_set_style_text_color(
+      state->battery_value,
+      low_battery ? RED_LOW : DARK, 0);
 }
 
 void update_activity(
