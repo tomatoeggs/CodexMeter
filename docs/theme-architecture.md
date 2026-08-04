@@ -180,8 +180,7 @@ lv_screen_active()
 ├── theme_host          # 当前主题 Dashboard，参与防烧屏漂移
 ├── alert_layer         # 系统默认 Completion，全屏且不漂移
 ├── settings_layer      # 设置页
-├── brightness_layer    # 亮度提示
-└── theme_toast         # 主题名称提示
+└── brightness_layer    # 亮度提示
 ```
 
 当前场景状态：
@@ -201,7 +200,7 @@ stateDiagram-v2
 
 - Completion 总停留时间由协调器限制。
 - 主题切换请求若发生在 Completion 中，保存为一个 `pending_theme_change`，返回 Dashboard 后只执行一次。
-- 亮度浮层和主题名称浮层属于系统层，不要求每套主题重复实现。
+- 亮度浮层属于系统层，不要求每套主题重复实现。
 
 后续接入 `ThemeStartupOps` / `ThemeCompletionOps` 时，再增加独立 scene host，并覆盖：
 
@@ -222,7 +221,8 @@ stateDiagram-v2
 4. 从注册表查找新主题；失败则回退 `classic`。
 5. 挂载新主题并重放完整 ViewModel。
 6. 复位防烧屏漂移位置，重新显示并 invalidate 整屏。
-7. 显示约 1.2 秒的主题名称浮层。
+
+主题切换后直接显示新仪表盘，不再叠加主题名称提示。
 
 当前 2px 防烧屏漂移应作用于 `theme_host`。每套主题必须提供至少 2px 的安全延伸区域，避免根节点移动后露出未绘制边缘。
 
@@ -244,6 +244,10 @@ AXP2101 和当前 XPowersLib 已提供：
 
 - `XPOWERS_AXP2101_PKEY_SHORT_IRQ`
 - `XPOWERS_AXP2101_PKEY_LONG_IRQ`
+- `XPOWERS_AXP2101_VBUS_INSERT_IRQ`
+- `XPOWERS_AXP2101_VBUS_REMOVE_IRQ`
+- `XPOWERS_AXP2101_BAT_CHG_START_IRQ`
+- `XPOWERS_AXP2101_BAT_CHG_DONE_IRQ`
 - `isPekeyShortPressIrq()`
 - `isPekeyLongPressIrq()`
 
@@ -267,6 +271,8 @@ AXP2101 和当前 XPowersLib 已提供：
 | ThemeTransition | 忽略或合并 | 忽略 | 忽略 | 关屏 |
 
 短按在关屏状态下不生效，是为了保持“亮屏 / 关屏只能由长按触发”的一致语义。
+
+PKEY 在亮屏 / 关屏时分别按 100ms / 250ms 检查。充电状态主要由 VBUS 和充电 IRQ 驱动；亮屏时电量、充电状态每 30 秒兜底读取一次，关屏时暂停这两项周期读取并在唤醒时立即刷新。电量变化通过状态事件通知 UI，避免主循环反复读取 PMU 或重建相同 ViewModel。
 
 设置项首版包括：
 
@@ -457,7 +463,7 @@ struct DeviceSettings {
 - 自动轮换只统计仪表盘可见时间。
 - 屏幕关闭时短按无动作，长按亮屏。
 - 设置页 30 秒无操作自动关闭并取消未确认修改。
-- 主题切换后显示 1.2 秒主题名称。
+- 主题切换后直接显示新仪表盘，不显示主题名称。
 - Startup 与 Completion 暂时使用系统默认实现；未来可主题化，但亮度浮层保持系统统一。
 
 这些是产品策略，不影响模块边界；后续调整数值或交互时无需改动主题接口。

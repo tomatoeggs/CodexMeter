@@ -14,6 +14,7 @@
 
 static SensorQMI8658 imu;
 static bool imu_ready = false;
+static bool display_active = true;
 static bool auto_rotation = true;
 static uint8_t current_rotation = 0;
 static uint8_t candidate_rotation = 0;
@@ -79,7 +80,7 @@ bool imu_init() {
 }
 
 void imu_tick() {
-  if (!imu_ready) return;
+  if (!imu_ready || !display_active) return;
 
   uint32_t now = millis();
   if (now - last_poll_ms < IMU_POLL_MS) return;
@@ -110,6 +111,29 @@ void imu_tick() {
 
   current_rotation = target;
   device_logf("INFO", "orientation rotation=%u auto=1", current_rotation);
+}
+
+void imu_set_display_active(bool active) {
+  if (display_active == active) return;
+
+  display_active = active;
+  if (!imu_ready) return;
+
+  if (!display_active) {
+    imu.powerDown();
+    device_logf("INFO", "IMU display_active=0 power=down");
+    return;
+  }
+
+  imu.powerOn();
+  if (!imu.enableAccelerometer()) {
+    device_logf("WARN", "IMU accelerometer enable failed after wake");
+  }
+  last_poll_ms = 0;
+  has_filtered_sample = false;
+  candidate_rotation = current_rotation;
+  candidate_since_ms = millis();
+  device_logf("INFO", "IMU display_active=1 power=on");
 }
 
 bool imu_available() {
@@ -169,7 +193,8 @@ void imu_print_status(Stream& out) {
   float az = 0.0f;
   bool sample = imu_last_sample(&ax, &ay, &az);
   out.printf(
-      "IMU ready=%d auto=%d rotation=%u deg=%s sample=%d ax=%.3f ay=%.3f az=%.3f\n",
-      imu_ready ? 1 : 0, auto_rotation ? 1 : 0, current_rotation,
-      imu_rotation_label(current_rotation), sample ? 1 : 0, ax, ay, az);
+      "IMU ready=%d active=%d auto=%d rotation=%u deg=%s sample=%d ax=%.3f ay=%.3f az=%.3f\n",
+      imu_ready ? 1 : 0, display_active ? 1 : 0, auto_rotation ? 1 : 0,
+      current_rotation, imu_rotation_label(current_rotation), sample ? 1 : 0,
+      ax, ay, az);
 }

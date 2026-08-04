@@ -74,8 +74,6 @@ lv_obj_t* alert_body = nullptr;
 lv_obj_t* brightness_layer = nullptr;
 lv_obj_t* brightness_bar = nullptr;
 lv_obj_t* brightness_pct = nullptr;
-lv_obj_t* theme_toast = nullptr;
-lv_obj_t* theme_toast_label = nullptr;
 lv_obj_t* settings_layer = nullptr;
 lv_obj_t* settings_mode_label = nullptr;
 lv_obj_t* settings_rows[SETTINGS_ITEM_COUNT]{};
@@ -97,7 +95,6 @@ bool display_active = true;
 bool alert_active = false;
 bool alert_reveal_pending = false;
 bool brightness_active = false;
-bool toast_active = false;
 bool settings_active = false;
 bool settings_editing = false;
 bool rotation_eligible = false;
@@ -109,7 +106,6 @@ uint32_t alert_started_ms = 0;
 uint32_t flash_started_ms = 0;
 uint32_t alert_reveal_started_ms = 0;
 uint32_t brightness_started_ms = 0;
-uint32_t toast_started_ms = 0;
 uint32_t settings_last_input_ms = 0;
 uint32_t drift_last_ms = 0;
 uint32_t dashboard_last_refresh_ms = 0;
@@ -321,22 +317,6 @@ void make_brightness_overlay() {
   lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
 }
 
-void make_theme_toast() {
-  theme_toast = lv_obj_create(screen);
-  lv_obj_remove_flag(theme_toast, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_size(theme_toast, 260, 62);
-  lv_obj_align(theme_toast, LV_ALIGN_BOTTOM_MID, 0, -24);
-  lv_obj_set_style_radius(theme_toast, 8, 0);
-  lv_obj_set_style_bg_color(theme_toast, lv_color_hex(0x151923), 0);
-  lv_obj_set_style_bg_opa(theme_toast, LV_OPA_90, 0);
-  lv_obj_set_style_border_width(theme_toast, 1, 0);
-  lv_obj_set_style_border_color(theme_toast, CODEX_BLUE, 0);
-  theme_toast_label = make_label(
-      theme_toast, "", &lv_font_montserrat_24, TEXT);
-  lv_obj_center(theme_toast_label);
-  lv_obj_add_flag(theme_toast, LV_OBJ_FLAG_HIDDEN);
-}
-
 void make_settings_layer() {
   settings_layer = lv_obj_create(screen);
   lv_obj_set_size(
@@ -434,17 +414,7 @@ void tick_burn_in_drift(uint32_t now) {
 #endif
 }
 
-void show_theme_toast() {
-  if (settings_active || !display_active) return;
-  lv_label_set_text(theme_toast_label, theme_runtime.current_name());
-  lv_obj_clear_flag(theme_toast, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_move_to_index(theme_toast, -1);
-  toast_active = true;
-  toast_started_ms = millis();
-}
-
-bool perform_theme_switch(
-    const char* id, bool persist, bool show_toast) {
+bool perform_theme_switch(const char* id, bool persist) {
   if (!id || !id[0]) return false;
   const char* current = theme_runtime.current_id();
   if (current && strcmp(current, id) == 0) {
@@ -466,7 +436,6 @@ bool perform_theme_switch(
   }
   rotation_policy.reset(millis());
   lv_obj_invalidate(screen);
-  if (show_toast && exact_switch) show_theme_toast();
   return exact_switch;
 }
 
@@ -478,7 +447,7 @@ void apply_pending_theme_change() {
   pending_theme_change = false;
   pending_theme_persist = false;
   pending_theme_id[0] = '\0';
-  perform_theme_switch(id, persist, true);
+  perform_theme_switch(id, persist);
 }
 
 void refresh_settings_rows() {
@@ -554,7 +523,7 @@ void cancel_edit() {
   SettingItem item = static_cast<SettingItem>(settings_selected);
   switch (item) {
     case SettingItem::Theme:
-      perform_theme_switch(edit_original_theme, false, false);
+      perform_theme_switch(edit_original_theme, false);
       break;
     case SettingItem::Brightness:
       device_settings_set_brightness(edit_original_brightness);
@@ -592,9 +561,7 @@ void open_settings() {
   if (!display_active) return;
   if (alert_active) ui_dismiss_alert();
   brightness_active = false;
-  toast_active = false;
   lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(theme_toast, LV_OBJ_FLAG_HIDDEN);
   settings_active = true;
   settings_editing = false;
   settings_selected = 0;
@@ -720,7 +687,6 @@ void ui_init(const UiSystemHooks& hooks) {
 
   make_alert_layer();
   make_brightness_overlay();
-  make_theme_toast();
   make_settings_layer();
 
   rotation_policy.configure(
@@ -736,20 +702,23 @@ void ui_init(const UiSystemHooks& hooks) {
 
 void ui_update_usage(const UsageModel& usage) {
   app_usage = usage;
-  refresh_dashboard_model(millis());
+  if (display_active) refresh_dashboard_model(millis());
 }
 
 void ui_update_activity(const ActivityModel& activity) {
   app_activity = activity;
-  refresh_dashboard_model(millis());
+  if (display_active) refresh_dashboard_model(millis());
 }
 
 void ui_show_alert(const AlertModel& alert) {
+  if (!display_active) {
+    device_logf("INFO", "alert suppressed display_inactive title=%s", alert.title);
+    return;
+  }
+
   close_settings_internal(true);
   brightness_active = false;
-  toast_active = false;
   lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(theme_toast, LV_OBJ_FLAG_HIDDEN);
 
   device_logf(
       "INFO", "alert show title_b=%u body_b=%u",
@@ -776,7 +745,7 @@ void ui_show_alert(const AlertModel& alert) {
 void ui_set_battery(int pct, bool charging) {
   app_battery_percent = pct;
   app_charging = charging;
-  refresh_dashboard_model(millis());
+  if (display_active) refresh_dashboard_model(millis());
 }
 
 void ui_show_brightness(int pct) {
@@ -792,6 +761,8 @@ void ui_show_brightness(int pct) {
 }
 
 void ui_tick() {
+  if (!display_active) return;
+
   uint32_t now = millis();
   if (now - dashboard_last_refresh_ms >= 30000UL) {
     refresh_dashboard_model(now);
@@ -806,12 +777,6 @@ void ui_tick() {
     lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
   }
 
-  if (toast_active &&
-      now - toast_started_ms >= CODEXMETER_THEME_TOAST_MS) {
-    toast_active = false;
-    lv_obj_add_flag(theme_toast, LV_OBJ_FLAG_HIDDEN);
-  }
-
   if (settings_active &&
       now - settings_last_input_ms >=
           CODEXMETER_SETTINGS_IDLE_TIMEOUT_MS) {
@@ -820,7 +785,7 @@ void ui_tick() {
 
   bool eligible =
       display_active && !alert_active && !settings_active &&
-      !brightness_active && !toast_active;
+      !brightness_active;
   if (eligible != rotation_eligible) {
     rotation_eligible = eligible;
     rotation_policy.set_eligible(eligible, now);
@@ -875,16 +840,18 @@ void ui_tick() {
 }
 
 void ui_set_display_active(bool active) {
+  if (display_active == active) return;
+
   display_active = active;
   rotation_eligible = false;
   rotation_policy.set_eligible(false, millis());
-  if (!active) {
+  if (active) {
+    refresh_dashboard_model(millis());
+  } else {
     close_settings_internal(true);
     if (alert_active) ui_dismiss_alert();
     brightness_active = false;
-    toast_active = false;
     lv_obj_add_flag(brightness_layer, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(theme_toast, LV_OBJ_FLAG_HIDDEN);
   }
 }
 
@@ -943,7 +910,7 @@ bool ui_set_theme(const char* id, bool persist) {
     pending_theme_persist = persist;
     return true;
   }
-  return perform_theme_switch(id, persist, !settings_active);
+  return perform_theme_switch(id, persist);
 }
 
 bool ui_next_theme(int direction, bool persist) {

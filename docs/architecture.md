@@ -33,10 +33,10 @@
 - `firmware/src/device_settings.*`：保存主题、亮度、预留音量和自动换主题配置；使用带版本和 CRC 的 NVS 记录以及延迟写入。
 - `firmware/src/ui.*`：负责主题运行时、设置页、系统浮层、防烧屏漂移、红黄绿闪屏和任务完成视图之间的场景协调。
 - `firmware/src/ble_service.*`：负责 GATT 服务、RX/TX、ACK/NACK 与刷新通知。
-- `firmware/src/power.*`：负责 AXP2101 电量和中间 PKEY 事件。
-- `firmware/src/imu.*`：负责 QMI8658 初始化、加速度采样、方向防抖、自动/手动旋转模式和 IMU 串口状态输出。
+- `firmware/src/power.*`：负责 AXP2101 电量、充电 / VBUS IRQ、中间 PKEY 事件，以及亮屏 / 关屏两档 PMU 轮询策略。
+- `firmware/src/imu.*`：负责 QMI8658 初始化、加速度采样、方向防抖、自动/手动旋转模式、关屏休眠 / 亮屏恢复和 IMU 串口状态输出。
 - `firmware/src/display_rotation.*`：负责把 LVGL 局部刷新区域按当前方向旋转后写入 CO5300，并让 USB 截图输出当前物理方向。
-- `firmware/src/main.cpp`：负责板级初始化、主循环调度、串口调试命令、LVGL flush、AMOLED 亮屏/关屏、亮度控制和方向变化重绘。
+- `firmware/src/main.cpp`：负责板级初始化、亮屏 / 关屏分级主循环调度、串口调试命令、LVGL flush、AMOLED 亮屏/关屏、亮度控制和方向变化重绘。
 - `firmware/src/device_log.*`：负责 ESP32 端关键事件环形日志、实时串口打印和按需日志 dump。
 - `tools/capture_screenshot.py`：负责通过 USB 串口触发固件截图命令、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
 - `tools/read_device_logs.py`：负责通过 USB 串口查询、清空或跟随 ESP32 设备日志。
@@ -70,14 +70,15 @@
 
 1. 固件在 `main.cpp` 维护 `screen_on` 状态，启动后默认为亮屏。
 2. AXP2101 PKEY 长按进入按键处理逻辑并切换 `screen_on`；同一次长按伴随的短按 IRQ 会被抑制。PKEY 短按只在亮屏状态下进入设置或确认当前设置。
-3. 关屏时调用 CO5300 驱动的 `displayOff()`，并让 LVGL flush 直接完成，不继续向屏幕写入像素。
-4. 亮屏时调用 `displayOn()`，随后 invalidate 当前活动屏幕并强制刷新一次，确保显示的是最新 UI。
+3. 关屏时先让 UI 进入 inactive 状态并使 QMI8658 `powerDown`，随后调用 CO5300 驱动的 `displayOff()`；主循环不再运行 LVGL、主题动画、方向采样和左右键扫描，LVGL flush 也会直接完成。
+4. 关屏期间收到的用量、活动和电量变化只更新模型缓存，不构建不可见帧，也不显示任务完成提醒；亮屏时恢复 IMU 加速度计，调用 `displayOn()`，重放缓存模型并强制刷新一次。
 5. 串口调试支持 `screen_on`、`screen_off` 和 `screen_toggle`，设备日志会记录 `screen on` / `screen off`。
 6. daemon 通过 `ioreg -n Root -d1 -r` 轮询 macOS `IOConsoleLocked` 状态。锁屏持续 5 分钟后发送 `control/screen off`，解锁时发送 `control/screen on`。
 7. 固件本地监测 BLE 连接状态。BLE 断开持续 5 分钟后，即使 Mac 端没有机会发送控制消息，固件也会本地关屏。
 8. BLE 恢复连接时，固件不会自行亮屏；daemon 只有在 Mac 当前未锁屏时才发送 `control/screen on`，避免锁屏期间重连点亮屏幕。
 9. daemon 队列只保留最新一条 `control` payload；BLE 写入前还会跳过锁屏期间遗留的过期亮屏控制，避免状态反转。
-10. 屏幕关闭只影响面板显示；BLE、任务计数、用量刷新、截图和日志链路继续运行。
+10. 主循环在亮屏 / 关屏时分别等待 10ms / 50ms；关屏仍保留 BLE、中间 PKEY、串口、设置延迟写入和 watchdog，后台策略与 stale 检查每秒执行一次，BLE 每轮最多排空 6 条消息。
+11. PKEY 在亮屏 / 关屏时分别每 100ms / 250ms 检查。充电状态优先由 VBUS 插拔、充电开始和充电完成 IRQ 更新；亮屏时电量与充电兜底轮询均为 30 秒，关屏时暂停周期轮询，并在亮屏时立即刷新。
 
 ## 主题与设置链路
 
@@ -107,7 +108,7 @@
 4. 方向以 0/1/2/3 表示，分别对应 0/90/180/270 度顺时针旋转。
 5. LVGL 仍以 480x480 逻辑坐标渲染；`display_rotation_draw()` 在 flush 出口把局部 RGB565 区域旋转到物理坐标后再写入 CO5300。
 6. 方向变化时，主循环先把屏幕亮度降为 0，强制整屏 invalidate 和刷新，然后用 4 个小步恢复到用户设置的亮度。
-7. 屏幕关闭时仍会更新方向状态；再次亮屏时会刷新到最新方向。
+7. 屏幕关闭时 QMI8658 进入 `powerDown` 并停止方向采样；再次亮屏时执行 `powerOn`、恢复加速度计并重新建立方向滤波候选。
 8. 串口调试支持 `imu` 查看加速度读数和当前方向，`rotate auto` 恢复自动旋转，`rotate 0/90/180/270` 手动锁定方向。
 9. `screenshot` 命令会在输出前按当前方向旋转快照，因此 USB 视觉 QA 看到的画面与设备物理显示一致。
 

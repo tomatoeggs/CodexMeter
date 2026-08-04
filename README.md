@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v3.9.1`](CHANGELOG.md)。
+当前稳定版本为 [`v3.10.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -46,6 +46,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 - 正常状态由当前主题显示运行中的 Codex 任务数量或状态指示。
 - Codex 任务完成后触发红、黄、绿全屏闪动，然后显示“任务完成！”和任务摘要。
 - Mac 锁屏或 BLE 通信断开 5 分钟后可自动关屏；Mac 解锁或未锁屏时 BLE 恢复会自动亮屏。
+- 关屏后暂停 LVGL、主题动画、IMU 和非必要按键扫描，并降低主循环与 PMU 轮询频率；BLE、中间键、串口和看门狗保持工作，亮屏时恢复采样并一次性刷新缓存状态。
 - 正常页会定时在 2px 范围内轻微漂移，降低 AMOLED 固定元素长期停留在同一批像素上的风险。
 - 通过板载 QMI8658 IMU 感知重力方向，自动旋转屏幕显示方向。
 

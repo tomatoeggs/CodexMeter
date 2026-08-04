@@ -62,6 +62,9 @@ static uint32_t last_host_payload_ms = 0;
 static bool screen_on = true;
 static bool watchdog_enabled = false;
 static int brightness_percent = CODEXMETER_BRIGHTNESS_DEFAULT;
+static int displayed_battery_percent = -1;
+static bool displayed_battery_charging = false;
+static bool displayed_battery_valid = false;
 static uint8_t displayed_rotation = 0;
 static uint8_t rotation_ramp_step = 0;
 static uint32_t rotation_ramp_last_ms = 0;
@@ -189,6 +192,21 @@ static void apply_brightness() {
   gfx->setBrightness(brightness_raw_from_percent(brightness_percent));
 }
 
+static void refresh_battery_ui(bool force) {
+  const int battery_percent = power_battery_percent();
+  const bool charging = power_is_charging();
+  if (!force && displayed_battery_valid &&
+      battery_percent == displayed_battery_percent &&
+      charging == displayed_battery_charging) {
+    return;
+  }
+
+  displayed_battery_percent = battery_percent;
+  displayed_battery_charging = charging;
+  displayed_battery_valid = true;
+  ui_set_battery(battery_percent, charging);
+}
+
 static void display_init() {
   if (!gfx->begin()) {
     device_logf("ERROR", "gfx begin failed");
@@ -251,6 +269,9 @@ static void set_screen_on(bool on, const char* reason) {
 
   screen_on = on;
   if (screen_on) {
+    power_set_display_active(true);
+    imu_set_display_active(true);
+    refresh_battery_ui(true);
     gfx->displayOn();
     apply_brightness();
     ui_set_display_active(true);
@@ -259,6 +280,8 @@ static void set_screen_on(bool on, const char* reason) {
     device_logf("INFO", "screen on %s", non_empty_reason(reason));
   } else {
     ui_set_display_active(false);
+    imu_set_display_active(false);
+    power_set_display_active(false);
     gfx->displayOff();
     device_logf("INFO", "screen off %s", non_empty_reason(reason));
   }
@@ -675,35 +698,38 @@ static void handle_button() {
   static GpioButtonState right = {
       CODEXMETER_BUTTON_RIGHT_PIN, false, false, false, 0, 0};
 
-  GpioButtonEvent left_event = take_gpio_button_event(&left);
-  if (left_event == GpioButtonEvent::LongPress && screen_on &&
-      !ui_settings_visible() && !ui_alert_visible()) {
-    bool switched = ui_next_theme(-1, true);
-    device_logf(
-        "INFO", "left key long press theme previous result=%d",
-        switched ? 1 : 0);
-  } else if (left_event == GpioButtonEvent::ShortPress && screen_on) {
-    if (ui_settings_visible()) {
-      ui_settings_move(-1);
-    } else {
-      adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "left");
+  if (screen_on) {
+    GpioButtonEvent left_event = take_gpio_button_event(&left);
+    if (left_event == GpioButtonEvent::LongPress &&
+        !ui_settings_visible() && !ui_alert_visible()) {
+      bool switched = ui_next_theme(-1, true);
+      device_logf(
+          "INFO", "left key long press theme previous result=%d",
+          switched ? 1 : 0);
+    } else if (left_event == GpioButtonEvent::ShortPress) {
+      if (ui_settings_visible()) {
+        ui_settings_move(-1);
+      } else {
+        adjust_brightness(-CODEXMETER_BRIGHTNESS_STEP, "left");
+      }
+    }
+
+    GpioButtonEvent right_event = take_gpio_button_event(&right);
+    if (right_event == GpioButtonEvent::LongPress &&
+        !ui_settings_visible() && !ui_alert_visible()) {
+      bool switched = ui_next_theme(1, true);
+      device_logf(
+          "INFO", "right key long press theme next result=%d",
+          switched ? 1 : 0);
+    } else if (right_event == GpioButtonEvent::ShortPress) {
+      if (ui_settings_visible()) {
+        ui_settings_move(1);
+      } else {
+        adjust_brightness(CODEXMETER_BRIGHTNESS_STEP, "right");
+      }
     }
   }
 
-  GpioButtonEvent right_event = take_gpio_button_event(&right);
-  if (right_event == GpioButtonEvent::LongPress && screen_on &&
-      !ui_settings_visible() && !ui_alert_visible()) {
-    bool switched = ui_next_theme(1, true);
-    device_logf(
-        "INFO", "right key long press theme next result=%d",
-        switched ? 1 : 0);
-  } else if (right_event == GpioButtonEvent::ShortPress && screen_on) {
-    if (ui_settings_visible()) {
-      ui_settings_move(1);
-    } else {
-      adjust_brightness(CODEXMETER_BRIGHTNESS_STEP, "right");
-    }
-  }
   PowerKeyEvent power_event = power_take_key_event();
   if (power_event == PowerKeyEvent::LongPress) {
     toggle_screen("button_hold");
@@ -772,7 +798,7 @@ void setup() {
   ui_hooks.apply_brightness = settings_apply_brightness;
   ui_init(ui_hooks);
   ui_set_display_active(true);
-  ui_set_battery(power_battery_percent(), power_is_charging());
+  refresh_battery_ui(true);
   ble_service_init();
   ble_service_request_refresh();
   last_host_payload_ms = millis();
@@ -781,50 +807,57 @@ void setup() {
 }
 
 void loop() {
-  static uint32_t last_battery_ui_ms = 0;
   static uint32_t lv_slow_count = 0;
   static uint32_t last_lv_slow_log_ms = 0;
+  static uint32_t last_background_policy_ms = 0;
 
-  uint32_t lv_start_ms = millis();
-  lv_timer_handler();
-  uint32_t lv_elapsed_ms = millis() - lv_start_ms;
+  if (screen_on) {
+    uint32_t lv_start_ms = millis();
+    lv_timer_handler();
+    uint32_t lv_elapsed_ms = millis() - lv_start_ms;
 #if CODEXMETER_LVGL_SLOW_FRAME_MS > 0
-  if (lv_elapsed_ms >= CODEXMETER_LVGL_SLOW_FRAME_MS) {
-    lv_slow_count++;
-    uint32_t now = millis();
-    if (now - last_lv_slow_log_ms >= 250) {
-      last_lv_slow_log_ms = now;
-      device_logf(
-          "WARN", "lv_timer slow ms=%lu count=%lu",
-          (unsigned long)lv_elapsed_ms, (unsigned long)lv_slow_count);
+    if (lv_elapsed_ms >= CODEXMETER_LVGL_SLOW_FRAME_MS) {
+      lv_slow_count++;
+      uint32_t now = millis();
+      if (now - last_lv_slow_log_ms >= 250) {
+        last_lv_slow_log_ms = now;
+        device_logf(
+            "WARN", "lv_timer slow ms=%lu count=%lu",
+            (unsigned long)lv_elapsed_ms, (unsigned long)lv_slow_count);
+      }
     }
-  }
 #endif
-  ui_tick();
+    ui_tick();
+  }
   device_settings_tick();
   power_tick();
+  if (power_take_state_changed()) refresh_battery_ui(false);
   ble_service_tick();
-  handle_ble_screen_policy();
   handle_button();
   handle_serial();
-  handle_orientation();
+  if (screen_on) handle_orientation();
 
-  if (ble_service_has_data()) {
+  uint8_t drained_payloads = 0;
+  while (drained_payloads < CODEXMETER_BLE_RX_DRAIN_MAX &&
+         ble_service_has_data()) {
     handle_json(ble_service_take_data());
+    drained_payloads++;
   }
 
-  if (usage.valid && millis() - last_usage_ms > CODEXMETER_STALE_AFTER_MS) {
-    strlcpy(usage.status, "stale", sizeof(usage.status));
-    ui_update_usage(usage);
-    last_usage_ms = millis();
-    device_logf("WARN", "usage stale");
-  }
-
-  if (millis() - last_battery_ui_ms >= 2000) {
-    last_battery_ui_ms = millis();
-    ui_set_battery(power_battery_percent(), power_is_charging());
+  const uint32_t now = millis();
+  if (now - last_background_policy_ms >=
+      CODEXMETER_BACKGROUND_POLICY_POLL_MS) {
+    last_background_policy_ms = now;
+    handle_ble_screen_policy();
+    if (usage.valid && now - last_usage_ms > CODEXMETER_STALE_AFTER_MS) {
+      strlcpy(usage.status, "stale", sizeof(usage.status));
+      ui_update_usage(usage);
+      last_usage_ms = now;
+      device_logf("WARN", "usage stale");
+    }
   }
 
   feed_watchdog();
-  delay(5);
+  delay(screen_on ? CODEXMETER_MAIN_LOOP_ACTIVE_DELAY_MS
+                  : CODEXMETER_MAIN_LOOP_INACTIVE_DELAY_MS);
 }

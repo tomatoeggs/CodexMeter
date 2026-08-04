@@ -4,6 +4,7 @@
 
 bool imu_init();
 void imu_tick();
+void imu_set_display_active(bool active);
 
 bool imu_available();
 bool imu_auto_rotation_enabled();
