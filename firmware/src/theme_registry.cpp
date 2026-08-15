@@ -8,6 +8,7 @@
 #include "famicom_theme.h"
 #include "gargantua_theme.h"
 #include "gundam_theme.h"
+#include "three_body_theme.h"
 #include "walle_theme.h"
 #include "walle_blueprint_theme.h"
 #include "walle_v10_theme.h"
@@ -21,6 +22,7 @@ const ThemePack* const THEMES[] = {
     &animal_crossing_theme_pack(),
     &gundam_theme_pack(),
     &gargantua_theme_pack(),
+    &three_body_theme_pack(),
     &walle_theme_pack(),
     &walle_v10_theme_pack(),
     &walle_blueprint_theme_pack(),

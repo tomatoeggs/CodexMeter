@@ -1,5 +1,26 @@
 # Theme image assets
 
+`three_body_bg.rgb565` is the 480×480 static scene for the `three_body`
+firmware theme. Its approved impasto source and clean runtime source are:
+
+`docs/assets/three-body-starry-night-oil-v1.png`
+
+`docs/assets/three-body-starry-night-runtime-clean.png`
+
+The asset preserves the Van Gogh-inspired flattened Solar System, recognisable
+planet hierarchy, Pluto canyon, medium-scale impasto strokes, card chrome and
+the remaining fixed headings. Runtime token values, quota, battery, reset
+countdown, task count and sync state are rendered by LVGL. The fourth card's
+RESET heading and the complete footer are also dynamic overlays. The footer
+uses three equal-width capsules for BLE/SYNC, task count and battery state; the
+former decorative status lamps are not included in the runtime background.
+The binary is little-endian RGB565, row-major, headerless, and exactly 460800
+bytes.
+
+Regenerate the clean PNG and runtime asset with:
+
+`python3 tools/generate_three_body_theme_assets.py`
+
 `animal_crossing_bg.rgb565` is the 480×480 static scene layer for the
 `animal_crossing` firmware theme. It is RGB565 little-endian, row-major, without
 a file header; the exact expected size is 480 × 480 × 2 = 460800 bytes.

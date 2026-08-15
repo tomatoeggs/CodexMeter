@@ -8,12 +8,14 @@ The Droid fonts are licensed under the Apache License 2.0. The font is used by
 the LVGL TinyTTF prototype so the device can render Chinese text locally instead
 of receiving pre-rendered images over BLE.
 
-`BarlowCondensed-Black.ttf` comes from the Barlow project:
+`BarlowCondensed-Black.ttf`, `BarlowCondensed-Bold.ttf` and
+`BarlowCondensed-ExtraBold.ttf` come from the Barlow project:
 
 https://github.com/google/fonts/tree/main/ofl/barlowcondensed
 
-It is used by the Cyberpunk theme for its condensed display typography and is
-distributed under the SIL Open Font License 1.1. See
+Black is used by the Cyberpunk theme; Bold and ExtraBold provide the compact
+labels and large numeric readouts in the THREE BODY theme. They are distributed
+under the SIL Open Font License 1.1. See
 `OFL-BarlowCondensed.txt` in this directory for the complete license.
 
 `Fredoka-SemiBold-Latin.ttf` is a Latin-only static subset of Fredoka:
