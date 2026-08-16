@@ -67,15 +67,25 @@ def looks_like_task_descriptor(message: str) -> bool:
         value = json.loads(message.strip())
     except Exception:
         return False
-    if not isinstance(value, dict) or set(value) != {"title", "description"}:
+    if not isinstance(value, dict):
         return False
-    title = value.get("title")
-    description = value.get("description")
-    if not isinstance(title, str) or not isinstance(description, str):
-        return False
-    title = title.strip()
-    description = description.strip()
-    return bool(title and description and len(title) <= 120 and len(description) <= 400)
+
+    if set(value) == {"title", "description"}:
+        title = value.get("title")
+        description = value.get("description")
+        if not isinstance(title, str) or not isinstance(description, str):
+            return False
+        title = title.strip()
+        description = description.strip()
+        return bool(
+            title and description and len(title) <= 120 and len(description) <= 400
+        )
+
+    if set(value) == {"summary"}:
+        summary = value.get("summary")
+        return isinstance(summary, str) and bool(summary.strip()) and len(summary) <= 400
+
+    return False
 
 
 def should_suppress_alert(hook_input: dict[str, Any]) -> bool:

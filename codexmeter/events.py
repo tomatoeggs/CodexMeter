@@ -30,6 +30,10 @@ StatusProvider = Callable[[], dict[str, Any]]
 TASK_ID_FIELDS = ("task_id", "turn_id", "session_id", "conversation_id")
 IDENTITY_TASK_ID_FIELDS = ("turn_id", "task_id")
 FINISHED_TASK_HISTORY = 128
+REJECTED_TASK_HISTORY = 128
+DEFINITIVE_REJECTION_REASONS = frozenset(
+    {"untrusted_transcript", "internal_thread", "non_user_thread"}
+)
 
 
 @dataclass
@@ -226,6 +230,9 @@ class EventServer:
         self.status_provider = status_provider
         self.server: asyncio.AbstractServer | None = None
         self.activity = ActivityTracker()
+        self.rejected_task_starts: deque[frozenset[str]] = deque(
+            maxlen=REJECTED_TASK_HISTORY
+        )
         self.verify_task_starts = verify_task_starts
         self.activity_ttl = max(0.0, activity_ttl)
         self.activity_sweep_interval = max(0.1, activity_sweep_interval)
@@ -335,6 +342,12 @@ class EventServer:
                     event.get("turn_id"), event.get("transcript_path")
                 )
                 if not verification.verified:
+                    if verification.reason in DEFINITIVE_REJECTION_REASONS:
+                        identity_aliases = _identity_aliases(task_aliases(event))
+                        if identity_aliases:
+                            self.rejected_task_starts.append(
+                                frozenset(identity_aliases)
+                            )
                     log.info(
                         "Ignored unverified task start turn=%s session=%s reason=%s",
                         event.get("turn_id"),
@@ -372,6 +385,22 @@ class EventServer:
         }
 
     async def _dispatch_task_complete(self, event: dict[str, Any]) -> dict[str, Any]:
+        identity_aliases = set(_identity_aliases(task_aliases(event)))
+        if identity_aliases and any(
+            rejected & identity_aliases for rejected in self.rejected_task_starts
+        ):
+            log.info(
+                "Ignored task complete for rejected start turn=%s session=%s",
+                event.get("turn_id"),
+                event.get("session_id"),
+            )
+            return {
+                "ok": True,
+                "queued": None,
+                "running": self.activity.count,
+                "ignored": "rejected_task_start",
+            }
+
         task = self.activity.finish_task(
             event,
             allow_oldest_fallback=_allow_oldest_fallback(event),

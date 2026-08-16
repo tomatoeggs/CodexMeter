@@ -200,6 +200,41 @@ def test_stop_hook_suppresses_thread_title_descriptor():
     ]
 
 
+def test_stop_hook_suppresses_internal_summary_descriptor():
+    spec = importlib.util.spec_from_file_location("codexmeter_stop_hook", STOP_HOOK)
+    assert spec is not None and spec.loader is not None
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    received = []
+    hook.send_event = received.append
+
+    hook.notify_stop(
+        {
+            "hook_event_name": "Stop",
+            "session_id": "session-summary",
+            "turn_id": "turn-summary",
+            "last_assistant_message": json.dumps(
+                {"summary": "修复任务尚未完成却弹出完成提醒的问题"},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        }
+    )
+
+    assert received == [
+        {
+            "type": "task_finish",
+            "source": "codex",
+            "session_id": "session-summary",
+            "conversation_id": None,
+            "turn_id": "turn-summary",
+            "task_id": None,
+            "cwd": None,
+            "allow_oldest_fallback": False,
+        }
+    ]
+
+
 def test_stop_hook_suppresses_internal_transcript_alert(tmp_path):
     codex_home = tmp_path / ".codex"
     transcript = codex_home / "sessions" / "guardian.jsonl"

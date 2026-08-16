@@ -333,6 +333,70 @@ def test_verified_task_start_requires_matching_user_transcript(tmp_path):
     asyncio.run(scenario())
 
 
+def test_rejected_internal_start_cannot_emit_completion_alert(tmp_path):
+    async def scenario():
+        codex_home = tmp_path / ".codex"
+        transcript = codex_home / "sessions" / "thread.jsonl"
+        transcript.parent.mkdir(parents=True)
+        rows = [
+            {
+                "type": "session_meta",
+                "payload": {"thread_source": "user", "source": "vscode"},
+            },
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_started", "turn_id": "real-turn"},
+            },
+        ]
+        transcript.write_text(
+            "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        payloads = []
+
+        async def sink(payload):
+            payloads.append(payload)
+
+        server = EventServer(
+            sink,
+            transcript_root=codex_home,
+            verify_task_starts=True,
+        )
+        await server._dispatch(
+            {
+                "type": "task_start",
+                "session_id": "real-session",
+                "turn_id": "real-turn",
+                "transcript_path": str(transcript),
+            }
+        )
+        ignored_start = await server._dispatch(
+            {
+                "type": "task_start",
+                "session_id": "summary-session",
+                "turn_id": "summary-turn",
+                "transcript_path": str(tmp_path / "internal-summary.jsonl"),
+            }
+        )
+        ignored_complete = await server._dispatch(
+            {
+                "type": "task_complete",
+                "session_id": "summary-session",
+                "turn_id": "summary-turn",
+                "body": '{"summary":"premature"}',
+            }
+        )
+
+        assert ignored_start["ignored"] == "unverified_task_start"
+        assert ignored_start["reason"] == "untrusted_transcript"
+        assert ignored_complete["ignored"] == "rejected_task_start"
+        assert ignored_complete["running"] == 1
+        assert [payload.kind for payload in payloads] == ["activity"]
+        assert server.activity.count == 1
+
+    asyncio.run(scenario())
+
+
 def test_activity_ttl_expires_only_stale_tasks_and_late_stop_is_safe():
     async def scenario():
         payloads = []
