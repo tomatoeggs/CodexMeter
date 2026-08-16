@@ -8,8 +8,8 @@
 
 - `DashboardViewModel`、`ThemePack`、主题注册表与单主题运行时生命周期。
 - `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、
-  `GARGANTUA`、`THREE BODY`、`WALL-E`、`WALL-E EARTH` 和
-  `WALL-E BLUEPRINT` 十套独立仪表盘。
+  `GARGANTUA`、`NIXIE RACK`、`THREE BODY`、`WALL-E`、`WALL-E EARTH` 和
+  `WALL-E BLUEPRINT` 十一套独立仪表盘。
 - 设备本地设置页、中键及左右键短按/长按语义、自动换主题和 NVS 持久化。
 - 设置、提醒、关屏与系统浮层期间暂停自动轮换。
 - Startup / Completion 的强类型接口预留。
@@ -43,7 +43,7 @@
 
 ## 2. 当前结构的约束
 
-v3.0 已把原先的固定 UI 拆为主题无关的 ViewModel、运行时和 `classic` 主题，并以 `cyberpunk` 验证主题可以拥有完全不同的对象树、排版和动画；v3.1 新增的 `famicom` 进一步验证了同一接口可以承载差异显著的硬件拟物布局；v3.2 新增的 `animal_crossing` 使用静态插画背景与动态 LVGL 覆盖层组合，验证同一接口也能承载高细节场景化主题；v3.3 新增的 `gundam` 继续复用这条静态插画与动态数据分层路径，把高达半身、白色基地终端纹理留在 RGB565 背景中，全部业务数字和状态由 LVGL 实时绘制；v3.8 新增的 `gargantua` 以完整的电影式黑洞场景验证同一路径也能承载大面积柔光、高倾角构图与非对称信息布局；v3.11 新增的 `three_body` 进一步验证同一分层架构可以在 4cm 屏幕上兼容厚涂油画纹理、高密度太阳系构图与大字号动态数据。`ui.cpp` 只协调场景与系统浮层，不再通过主题分支维护多套控件。
+v3.0 已把原先的固定 UI 拆为主题无关的 ViewModel、运行时和 `classic` 主题，并以 `cyberpunk` 验证主题可以拥有完全不同的对象树、排版和动画；v3.1 新增的 `famicom` 进一步验证了同一接口可以承载差异显著的硬件拟物布局；v3.2 新增的 `animal_crossing` 使用静态插画背景与动态 LVGL 覆盖层组合，验证同一接口也能承载高细节场景化主题；v3.3 新增的 `gundam` 继续复用这条静态插画与动态数据分层路径，把高达半身、白色基地终端纹理留在 RGB565 背景中，全部业务数字和状态由 LVGL 实时绘制；v3.8 新增的 `gargantua` 以完整的电影式黑洞场景验证同一路径也能承载大面积柔光、高倾角构图与非对称信息布局；v3.11 新增的 `three_body` 进一步验证同一分层架构可以在 4cm 屏幕上兼容厚涂油画纹理、高密度太阳系构图与大字号动态数据；v3.12 新增的 `nixie` 以静态真实管体、十枚动态阴极精灵和运行时加法辉光验证同一架构也能表达发光器件的分层照明与可切换机械滚轮。`ui.cpp` 只协调场景与系统浮层，不再通过主题分支维护多套控件。
 
 当前仍有两项刻意保留在系统层：
 
@@ -70,6 +70,7 @@ firmware/src/
 ├── animal_crossing_theme.h/.cpp # 动森岛屿场景仪表盘
 ├── gundam_theme.h/.cpp          # 白色基地机体诊断仪表盘
 ├── gargantua_theme.h/.cpp       # 卡冈图雅黑洞遥测仪表盘
+├── nixie_theme.h/.cpp           # 美式机架辉光管仪表盘
 ├── three_body_theme.h/.cpp      # 二维太阳系油画仪表盘
 ├── walle_theme.h/.cpp           # 黄黑 WALL-E 工程终端
 ├── walle_v10_theme.h/.cpp       # WALL-E EARTH 地球复育终端
@@ -357,7 +358,7 @@ struct DeviceSettings {
 - 多主题会显著增加固件和运行时资源压力。
 - 动态数值和动画仍需要额外图层。
 
-对于包含大量不可动插画细节、且逐个使用 LVGL 图元会明显损失还原度的主题，可以有条件使用“无字静态 RGB565 场景 + 透明动态 LVGL 覆盖层”。`Animal Crossing`、`GARGANTUA`、`THREE BODY`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 即采用这一方式：背景从 LittleFS 加载到 PSRAM，数值、标题、进度、电量和设备状态均是独立的透明实时对象；主题卸载时释放图片、字体和全部对象。Animal Crossing 针对当前 AMOLED 使用 70% 饱和度、94% 对比度的预校色背景；GARGANTUA 保留倾斜黑洞、吸积盘、引力透镜柔光与边框，所有业务文字均由 LVGL 覆盖；THREE BODY 保留厚涂二维太阳系、冥王星地表与数据卡片，全部业务数据和底栏状态由 LVGL 覆盖；WALL-E EARTH 保留设计稿像素纹理，并以独立亮态、灰态和掩码资源更新十枚额度叶；WALL-E BLUEPRINT 保留工程线稿，并以独立亮态、暗态和格位掩码更新十格额度条与七格电池。未经校色的原始背景和带示例数据的设计参考均独立保留，后续适配其他面板时必须从原始参考重新生成，不能在运行时资源上重复处理。此类主题必须在注册前确认 LittleFS 容量、PSRAM 分配失败回退和反复切换后的内存稳定性。
+对于包含大量不可动插画细节、且逐个使用 LVGL 图元会明显损失还原度的主题，可以有条件使用“无字静态 RGB565 场景 + 透明动态 LVGL 覆盖层”。`Animal Crossing`、`GARGANTUA`、`NIXIE RACK`、`THREE BODY`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 即采用这一方式：背景从 LittleFS 加载到 PSRAM，数值、标题、进度、电量和设备状态均是独立的透明实时对象；主题卸载时释放图片、字体和全部对象。Animal Crossing 针对当前 AMOLED 使用 70% 饱和度、94% 对比度的预校色背景；GARGANTUA 保留倾斜黑洞、吸积盘、引力透镜柔光与边框，所有业务文字均由 LVGL 覆盖；NIXIE RACK 保留玻璃管、阳极网、未点亮阴极和机架纹理，以十枚 ARGB8888 阴极精灵、加法辉光和可切换滚轮面板更新实时数据；THREE BODY 保留厚涂二维太阳系、冥王星地表与数据卡片，全部业务数据和底栏状态由 LVGL 覆盖；WALL-E EARTH 保留设计稿像素纹理，并以独立亮态、灰态和掩码资源更新十枚额度叶；WALL-E BLUEPRINT 保留工程线稿，并以独立亮态、暗态和格位掩码更新十格额度条与七格电池。未经校色的原始背景和带示例数据的设计参考均独立保留，后续适配其他面板时必须从原始参考重新生成，不能在运行时资源上重复处理。此类主题必须在注册前确认 LittleFS 容量、PSRAM 分配失败回退和反复切换后的内存稳定性。
 
 推荐：
 
@@ -400,7 +401,7 @@ struct DeviceSettings {
 - Python 宿主回归测试，确认既有 daemon 与 BLE 数据模型未受主题改动影响。
 - `waveshare_amoled_216` 固件完整编译与烧录。
 - 串口验证主题选择、自动轮换设置、NVS 状态、按键语义和设备日志。
-- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing、Gundam、GARGANTUA、THREE BODY、WALL-E、WALL-E EARTH 与 WALL-E BLUEPRINT；差异化主题额外覆盖 100%、非 100%、0/1/2/6/7/12 个活动任务、电池与文本对齐。
+- 实屏验证 Classic、设置页、Cyberpunk、Famicom、Animal Crossing、Gundam、GARGANTUA、NIXIE RACK、THREE BODY、WALL-E、WALL-E EARTH 与 WALL-E BLUEPRINT；差异化主题额外覆盖 100%、非 100%、0/1/2/6/7/12 个活动任务、电池与文本对齐。
 - USB 截图验证 480×480 物理输出。
 
 后续新增主题时至少覆盖：

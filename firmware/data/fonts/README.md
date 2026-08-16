@@ -30,7 +30,7 @@ this directory for the complete license.
 
 https://github.com/amcchord/datto-d-din
 
-It is used by the Gundam theme for its condensed industrial instrument
+It is used by the Gundam and NIXIE RACK themes for their condensed industrial instrument
 typography and is distributed under the SIL Open Font License 1.1. See
 `OFL-D-DIN-1.1.txt` in this directory for the complete license.
 

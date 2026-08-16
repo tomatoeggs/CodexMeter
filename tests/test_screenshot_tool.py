@@ -53,3 +53,11 @@ def test_detect_port_scoring_prefers_firmware_cdc_port():
         "/dev/cu.usbserial-test",
     ]
     assert sorted(ports, key=capture_screenshot.port_score)[0] == "/dev/cu.usbmodem211201"
+
+
+def test_wait_for_end_accepts_missing_optional_usb_status_line():
+    class TimeoutSerial:
+        def read_line(self, _timeout):
+            raise capture_screenshot.SerialToolError("timed out waiting for serial data")
+
+    capture_screenshot._wait_for_end(TimeoutSerial(), 0.01)

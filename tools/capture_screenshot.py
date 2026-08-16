@@ -9,6 +9,7 @@ import sys
 import time
 import zlib
 from pathlib import Path
+from collections.abc import Sequence
 
 from serial_device import (
     SerialSession,
@@ -32,8 +33,11 @@ def capture_rgb565le(
     *,
     line_timeout: float = DEFAULT_LINE_TIMEOUT_SECONDS,
     raw_timeout: float = DEFAULT_RAW_TIMEOUT_SECONDS,
+    pre_commands: Sequence[str] = (),
 ) -> tuple[int, int, bytes]:
     with SerialSession(port) as serial:
+        for command in pre_commands:
+            serial.write_line(command)
         serial.write_line("screenshot")
         while True:
             line = serial.read_line(line_timeout)
@@ -66,8 +70,12 @@ def _wait_for_end(serial: SerialSession, timeout: float) -> None:
     while time.monotonic() < deadline:
         try:
             line = serial.read_line(max(0.01, deadline - time.monotonic()))
-        except CaptureError:
-            break
+        except SerialToolError:
+            # The framebuffer payload is already complete at this point. Some
+            # USB CDC stacks can coalesce or drop the trailing status line;
+            # do not discard an otherwise valid capture just because the
+            # optional SCREENSHOT_END marker was not observed.
+            return
         if line.decode("utf-8", errors="replace").strip() == "SCREENSHOT_END":
             return
 
@@ -124,6 +132,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=DEFAULT_RAW_TIMEOUT_SECONDS,
         help="seconds to wait for raw framebuffer bytes",
     )
+    parser.add_argument(
+        "--command",
+        action="append",
+        default=[],
+        help="serial command to send immediately before screenshot (repeatable)",
+    )
     return parser.parse_args(argv)
 
 
@@ -142,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             port,
             line_timeout=args.line_timeout,
             raw_timeout=args.raw_timeout,
+            pre_commands=args.command,
         )
         output = Path(args.output)
         output.write_bytes(rgb565le_to_png(width, height, data))

@@ -533,6 +533,19 @@ static void handle_serial() {
         activity_apply_demo(&activity, 0);
         ui_update_activity(activity);
         device_logf("INFO", "serial demo_idle");
+      } else if (strncmp(buf, "demo_battery ", 13) == 0) {
+        int percent = 0;
+        if (parse_int_arg(buf + 13, &percent) &&
+            percent >= 0 && percent <= 100) {
+          displayed_battery_percent = percent;
+          displayed_battery_charging = false;
+          displayed_battery_valid = true;
+          ui_set_battery(percent, false);
+          Serial.printf("DEMO_BATTERY %d\n", percent);
+          device_logf("INFO", "serial demo_battery percent=%d", percent);
+        } else {
+          Serial.println("DEMO_BATTERY_INVALID");
+        }
       } else if (strcmp(buf, "screen_on") == 0) {
         set_screen_on(true, "serial");
       } else if (strcmp(buf, "screen_off") == 0) {

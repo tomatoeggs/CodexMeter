@@ -28,7 +28,7 @@
 - `firmware/src/model.*`：负责解析 BLE JSON 为固件内部模型，并记录 `usage` payload 接收时的 `millis()`，用于后续倒计时计算。
 - `firmware/src/dashboard_view_model.*`：把用量、电量、任务活动和连接状态转换为主题只读的统一仪表盘模型与格式化文本。
 - `firmware/src/theme.h` / `theme_registry.*` / `theme_runtime.*`：定义主题契约、编译期注册表，以及当前主题的挂载、更新、动画 tick、卸载和安全回退生命周期。
-- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `gargantua_theme.*` / `walle_theme.*` / `walle_v10_theme.*` / `walle_blueprint_theme.*`：当前内置的九套独立 LVGL 仪表盘实现。
+- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `gargantua_theme.*` / `nixie_theme.*` / `three_body_theme.*` / `walle_theme.*` / `walle_v10_theme.*` / `walle_blueprint_theme.*`：当前内置的十一套独立 LVGL 仪表盘实现。
 - `firmware/src/theme_rotation.*`：只在仪表盘真实可见时累计的自动换主题策略。
 - `firmware/src/device_settings.*`：保存主题、亮度、预留音量和自动换主题配置；使用带版本和 CRC 的 NVS 记录以及延迟写入。
 - `firmware/src/ui.*`：负责主题运行时、设置页、系统浮层、防烧屏漂移、红黄绿闪屏和任务完成视图之间的场景协调。
@@ -38,7 +38,7 @@
 - `firmware/src/display_rotation.*`：负责把 LVGL 局部刷新区域按当前方向旋转后写入 CO5300，并让 USB 截图输出当前物理方向。
 - `firmware/src/main.cpp`：负责板级初始化、亮屏 / 关屏分级主循环调度、串口调试命令、LVGL flush、AMOLED 亮屏/关屏、亮度控制和方向变化重绘。
 - `firmware/src/device_log.*`：负责 ESP32 端关键事件环形日志、实时串口打印和按需日志 dump。
-- `tools/capture_screenshot.py`：负责通过 USB 串口触发固件截图命令、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
+- `tools/capture_screenshot.py`：负责通过 USB 串口执行可选的预置命令、触发固件截图、读取 RGB565 帧缓冲并编码为 PNG，用于本地视觉 QA。
 - `tools/read_device_logs.py`：负责通过 USB 串口查询、清空或跟随 ESP32 设备日志。
 - `screenshot.sh`：截图工具入口，自动选择 Python 并转发参数。
 - `logs.sh`：日志工具入口，自动选择 Python 并转发参数。
@@ -123,9 +123,9 @@
 
 ## USB 截图链路
 
-1. 用户或自动化脚本运行 `./screenshot.sh out.png [port]`。
+1. 用户或自动化脚本运行 `./screenshot.sh out.png [port] [--command ...]`。
 2. 宿主侧工具自动寻找 USB CDC 串口，或使用显式传入的 `/dev/cu.usbmodem...`。
-3. 工具向固件发送一行 `screenshot`。
+3. 工具先按顺序发送全部可选 `--command`，再向固件发送一行 `screenshot`。
 4. 固件刷新一次 LVGL，然后用 `lv_snapshot_take_to_draw_buf()` 将当前活动屏幕渲染到 PSRAM 中的 RGB565 缓冲区。
 5. 固件会按当前屏幕方向旋转快照，再通过串口输出 `SCREENSHOT_START <width> <height> <bytes>`，随后写入原始 RGB565LE 字节，最后输出 `SCREENSHOT_END`。
 6. 宿主侧工具校验尺寸和字节数，把 RGB565LE 转为 RGB888，并使用 Python 标准库写出 PNG。

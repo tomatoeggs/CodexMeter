@@ -9,7 +9,7 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 
 > A compact macOS + ESP32 display for Codex usage limits and task-completion alerts.
 
-当前稳定版本为 [`v3.11.0`](CHANGELOG.md)。
+当前稳定版本为 [`v3.12.0`](CHANGELOG.md)。
 
 <p align="center">
   <img src="docs/assets/codexmeter-device.jpg" width="640" alt="CodexMeter 实物运行效果">
@@ -29,16 +29,16 @@ CodexMeter 是一个基于 ESP32 AMOLED 屏幕的 Codex 订阅余量、Token 活
 | --- | --- | --- | --- |
 | ![CodexMeter Gundam 主题](docs/verification/gundam-theme-final.png) | ![CodexMeter WALL-E 主题](docs/verification/walle-theme-final.png) | ![CodexMeter WALL-E EARTH 主题](docs/verification/walle-v10-secondary-center-x399.png) | ![CodexMeter WALL-E BLUEPRINT 主题](docs/verification/walle-blueprint-final.png) |
 
-| GARGANTUA 主题 | THREE BODY 主题 |  |  |
+| GARGANTUA 主题 | THREE BODY 主题 | NIXIE RACK 主题 |  |
 | --- | --- | --- | --- |
-| ![CodexMeter GARGANTUA 主题](docs/verification/gargantua/new-device-646355-left-aligned.png) | ![CodexMeter THREE BODY 主题](docs/verification/three-body/oil-device-final.png) |  |  |
+| ![CodexMeter GARGANTUA 主题](docs/verification/gargantua/new-device-646355-left-aligned.png) | ![CodexMeter THREE BODY 主题](docs/verification/three-body/oil-device-final.png) | ![CodexMeter NIXIE RACK 主题](docs/verification/nixie/nixie-rack-final.png) |  |
 
 ## 主要功能
 
 - macOS 后台 daemon 定时读取 Codex 订阅剩余用量和每日 Token 活动。
 - 通过 BLE 蓝牙把用量和提醒发送到 Waveshare ESP32-S3-Touch-AMOLED-2.16。
 - 支持一台 Mac 同时驱动多台已登记的 CodexMeter；设备按稳定短 ID 自动发现和重连。
-- ESP32 端内置 `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、`GARGANTUA`、`THREE BODY`、`WALL-E`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 十套主题；主题拥有独立布局和动画，并共享同一份只读仪表盘数据。
+- ESP32 端内置 `Classic`、`Cyberpunk`、`Famicom`、`Animal Crossing`、`Gundam`、`GARGANTUA`、`NIXIE RACK`、`THREE BODY`、`WALL-E`、`WALL-E EARTH` 与 `WALL-E BLUEPRINT` 十一套主题；主题拥有独立布局和动画，并共享同一份只读仪表盘数据。
 - 左、右键短按调整亮度，长按切换上一个、下一个主题；中间键短按进入设备设置页，可调整主题、自动换主题开关、自动换主题间隔与亮度，中间键长按切换亮屏/关屏。
 - 支持按 1–1440 分钟的有效展示时间自动轮换主题；关屏、设置页、任务提醒和系统浮层期间暂停计时。
 - Codex 返回 5h 窗口时保持原有的 5h/7d 余量主页；只返回 7d 窗口时自动切换为今日/近7天 Token 活动与 7d 余量主页。
@@ -112,7 +112,7 @@ launchctl kickstart -k gui/$(id -u)/com.user.codexmeter
 - `hooks/codexmeter_stop_hook.py`：Codex `Stop` hook，用于标记任务结束并触发完成提醒。
 - `firmware/`：ESP32 固件，使用 PlatformIO、Arduino、LVGL、Arduino_GFX、ArduinoJson 和 NimBLE。
 - `firmware/src/theme*.{h,cpp}`：主题契约、注册表、运行时与自动轮换策略。
-- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `gargantua_theme.*` / `three_body_theme.*` / `walle_theme.*` / `walle_v10_theme.*` / `walle_blueprint_theme.*`：当前内置的仪表盘主题。
+- `firmware/src/classic_theme.*` / `cyberpunk_theme.*` / `famicom_theme.*` / `animal_crossing_theme.*` / `gundam_theme.*` / `gargantua_theme.*` / `nixie_theme.*` / `three_body_theme.*` / `walle_theme.*` / `walle_v10_theme.*` / `walle_blueprint_theme.*`：当前内置的仪表盘主题。
 - `firmware/data/themes/`：场景化主题在 LittleFS 中使用的 RGB565 静态图层与动态掩码资源。
 - `firmware/src/device_settings.*`：带版本与 CRC 校验的设备端 NVS 设置。
 - `scripts/`：安装 hook 的辅助脚本。
@@ -232,7 +232,7 @@ daemon 不读取、不打印 Codex 登录 token。
 两种布局共同包含：
 
 - 当前主题自行决定标识、电量、Token、额度、重置窗口和任务指示的具体排版；各内置主题使用完全独立的 LVGL 结构。
-- 运行中任务由主题自行表达：Cyberpunk 最多显示 6 个状态菱形，Gundam 最多显示 7 颗状态灯，Famicom、Animal Crossing、GARGANTUA、THREE BODY、WALL-E、WALL-E EARTH 与 WALL-E BLUEPRINT 使用数字计数；没有运行中任务时显示空闲状态。
+- 运行中任务由主题自行表达：Cyberpunk 最多显示 6 个状态菱形，Gundam 最多显示 7 颗状态灯，Famicom、Animal Crossing、GARGANTUA、NIXIE RACK、THREE BODY、WALL-E、WALL-E EARTH 与 WALL-E BLUEPRINT 使用数字计数；没有运行中任务时显示空闲状态。
 - 仪表盘中左/右按键短按分别降低/增加亮度；亮度范围为 10%-100%，每次调整 10%，调整后显示 3 秒亮度进度条。
 - 中间键短按进入设置页，长按切换 AMOLED 亮屏和关闭；屏幕关闭时 BLE、任务计数、日志和用量刷新仍会继续运行。
 - Mac 锁屏持续 5 分钟后，daemon 会发送关屏控制；Mac 解锁后会立即发送亮屏控制。
@@ -252,6 +252,7 @@ daemon 不读取、不打印 Codex 登录 token。
 - `animal_crossing`：以海岛场景、黄色帐篷、悬挂便笺、叶片额度徽章、木制路标和狸克构成的岛屿日报；静态场景与动态前景统一使用针对当前 AMOLED 调整的 70% 饱和度配色，同时保留未经校色的原始背景。
 - `gundam`：以白色基地机库监视器、RX-78-2 赛璐璐半身、复古军用遥测网格和机体状态灯构成的移动战士诊断终端。
 - `gargantua`（显示名 `GARGANTUA`）：以倾斜的卡冈图雅黑洞、完整吸积盘、引力透镜柔光和非对称四角信息簇构成的星际航行遥测终端，并针对 4cm 实屏使用大字号高达风格字体。
+- `nixie`（显示名 `NIXIE RACK`）：以黑色美式机架计数器、三支真实冷阴极辉光管、玻璃与阳极网琥珀反光和机械滚轮数据窗构成复古仪表；针对 4cm 实屏使用大字号，并在 Today 超过 `100M` 后自动移除小数滚轮。设计分层与真机验收记录见 [`docs/themes-nixie.md`](docs/themes-nixie.md)。
 - `three_body`（显示名 `THREE BODY`）：以梵高《星空》式的二维太阳系、冥王星峡谷和高对比遥测卡片表达太阳系二维化场景，动态数据针对 4cm 屏幕使用大字号；设计分层与真机验收记录见 [`docs/themes-three-body-v15.md`](docs/themes-three-body-v15.md)。
 - `walle`：以黄黑工程机器人仪表、双目镜头、警示带、磁带计时器和履带状态区构成的 WALL-E 机械终端。
 - `walle_v10`（显示名 `WALL-E EARTH`）：以夕阳废土城市、幼苗靴、WALL-E 主体、十枚额度叶和像素显示器构成的地球复育终端。
@@ -347,6 +348,7 @@ demo_token_usage
 demo_alert
 demo_activity
 demo_idle
+demo_battery 87
 identity
 screen_on
 screen_off
@@ -364,6 +366,7 @@ theme famicom
 theme animal_crossing
 theme gundam
 theme gargantua
+theme nixie
 theme three_body
 theme walle
 theme walle_v10
@@ -423,6 +426,14 @@ log_clear
 ./screenshot.sh out.png /dev/cu.usbmodem211201
 ./screenshot.sh out.png --device A3F91C
 ./screenshot.sh --list
+```
+
+视觉回归时可以在截图前发送一个或多个串口命令；命令按给定顺序执行：
+
+```bash
+./screenshot.sh out.png /dev/cu.usbmodem211201 \
+  --command 'theme nixie' \
+  --command 'demo_token_usage'
 ```
 
 截图工具使用纯 Python 实现串口读取和 PNG 编码，不依赖 `ffmpeg` 或 `pyserial`。当前目标板带 PSRAM，可支持 480x480 全帧截图；未来若适配无 PSRAM 板，固件会返回 `SCREENSHOT_UNSUPPORTED`。当 USB 同时接入多台 CodexMeter 时，未指定 `--device` 或 port 会报错并要求明确目标，避免误操作。

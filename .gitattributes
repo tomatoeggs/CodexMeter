@@ -1,0 +1,7 @@
+*.argb8888 binary
+*.bin binary
+*.gif binary
+*.jpg binary
+*.png binary
+*.rgb565 binary
+*.ttf binary

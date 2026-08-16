@@ -1,5 +1,39 @@
 # Theme image assets
 
+## NIXIE RACK
+
+`nixie_bg.rgb565` is the 480×480 static American rack-counter scene for the
+`nixie` firmware theme. The source texture and display-calibrated runtime image
+are:
+
+`docs/assets/nixie-theme-v6-static-background-texture-final.png`
+
+`docs/assets/nixie-theme-v6-static-background-tube-lit-final.png`
+
+The static layer preserves the anodized rack panel, smoked window, three glass
+tubes, anode grids, unlit cathode stacks, sockets and fixed engravings. The ten
+`nixie_digit_*.argb8888` files are 90×108 little-endian BGRA sprites for the
+live cathodes. LVGL adds a broader amber spill behind each lit cathode so the
+grid, glass shoulders and socket inherit the discharge glow rather than leaving
+only the wire bright.
+
+`nixie_today_integer.rgb565` is a 156×55 overlay used from 100M through 999M.
+It replaces the normal narrow decimal roller with three equal numeric rollers
+and one equal unit roller. Below 100M the overlay stays hidden and the original
+decimal layout remains visible.
+
+Regenerate the cathode sprites first, then the background and integer overlay:
+
+`python3 tools/generate_nixie_digit_assets.py --install design`
+
+`python3 tools/generate_nixie_background_assets.py --install design`
+
+All binary assets are headerless and row-major. RGB565 assets use little-endian
+16-bit pixels; cathode sprites use the LVGL-compatible BGRA byte order for
+ARGB8888 on the target.
+
+## THREE BODY
+
 `three_body_bg.rgb565` is the 480×480 static scene for the `three_body`
 firmware theme. Its approved impasto source and clean runtime source are:
 
